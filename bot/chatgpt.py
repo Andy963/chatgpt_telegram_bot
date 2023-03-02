@@ -1,8 +1,8 @@
+import openai
+
 import config
 
-import openai
 openai.api_key = config.openai_api_key
-
 
 CHAT_MODES = {
     "assistant": {
@@ -34,7 +34,7 @@ CHAT_MODES = {
 class ChatGPT:
     def __init__(self):
         pass
-    
+
     def send_message(self, message, dialog_messages=[], chat_mode="assistant"):
         if chat_mode not in CHAT_MODES.keys():
             raise ValueError(f"Chat mode {chat_mode} is not supported")
@@ -44,23 +44,19 @@ class ChatGPT:
         while answer is None:
             prompt = self._generate_prompt(message, dialog_messages, chat_mode)
             try:
-                r = openai.Completion.create(
-                    engine="text-davinci-003",
-                    prompt=prompt,
-                    temperature=0.7,
-                    max_tokens=1000,
-                    top_p=1,
-                    frequency_penalty=0,
-                    presence_penalty=0,
+                r = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=prompt,
                 )
-                answer = r.choices[0].text
+                answer = r.choices[0].message
                 answer = self._postprocess_answer(answer)
 
                 n_used_tokens = r.usage.total_tokens
 
             except openai.error.InvalidRequestError as e:  # too many tokens
                 if len(dialog_messages) == 0:
-                    raise ValueError("Dialog messages is reduced to zero, but still has too many tokens to make completion") from e
+                    raise ValueError(
+                        "Dialog messages is reduced to zero, but still has too many tokens to make completion") from e
 
                 # forget first message in dialog_messages
                 dialog_messages = dialog_messages[1:]
@@ -70,22 +66,14 @@ class ChatGPT:
         return answer, prompt, n_used_tokens, n_first_dialog_messages_removed
 
     def _generate_prompt(self, message, dialog_messages, chat_mode):
-        prompt = CHAT_MODES[chat_mode]["prompt_start"]
-        prompt += "\n\n"
+        messages = []
+        if not dialog_messages:
+            messages.append({"role": "system", "content": "You are a helpful assistant."})
+        messages.extend(dialog_messages)
+        messages.append({"role": "user", "content": message})
 
-        # add chat context
-        if len(dialog_messages) > 0:
-            prompt += "Chat:\n"
-            for dialog_message in dialog_messages:
-                prompt += f"User: {dialog_message['user']}\n"
-                prompt += f"ChatGPT: {dialog_message['bot']}\n"
-
-        # current message
-        prompt += f"User: {message}\n"
-        prompt += "ChatGPT: "
-
-        return prompt
+        return messages
 
     def _postprocess_answer(self, answer):
-        answer = answer.strip()
+        answer = answer.get('content').strip()
         return answer
