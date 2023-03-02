@@ -1,12 +1,12 @@
-import os
-import logging
-import traceback
 import html
 import json
+import logging
+import traceback
 from datetime import datetime
 
 import telegram
 from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.constants import ParseMode
 from telegram.ext import (
     ApplicationBuilder,
     CallbackContext,
@@ -15,15 +15,14 @@ from telegram.ext import (
     CallbackQueryHandler,
     filters
 )
-from telegram.constants import ParseMode, ChatAction
 
-import config
-import database
 import chatgpt
-
+import config
+from database import Database
 
 # setup
-db = database.Database()
+
+db = Database()
 logger = logging.getLogger(__name__)
 
 HELP_MESSAGE = """Commands:
@@ -34,6 +33,7 @@ HELP_MESSAGE = """Commands:
 ⚪ /help – Show help
 """
 
+
 async def register_user_if_not_exists(update: Update, context: CallbackContext, user: User):
     if not db.check_if_user_exists(user.id):
         db.add_new_user(
@@ -41,22 +41,22 @@ async def register_user_if_not_exists(update: Update, context: CallbackContext, 
             update.message.chat_id,
             username=user.username,
             first_name=user.first_name,
-            last_name= user.last_name
+            last_name=user.last_name
         )
 
 
 async def start_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
-    
+
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
     db.start_new_dialog(user_id)
-    
+
     reply_text = "Hi! I'm <b>ChatGPT</b> bot implemented with GPT-3.5 OpenAI API 🤖\n\n"
     reply_text += HELP_MESSAGE
 
     reply_text += "\nAnd now... ask me anything!"
-    
+
     await update.message.reply_text(reply_text, parse_mode=ParseMode.HTML)
 
 
@@ -88,7 +88,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
     if update.edited_message is not None:
         await edited_message_handle(update, context)
         return
-        
+
     await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
 
@@ -112,7 +112,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         )
 
         # update user data
-        new_dialog_message = {"user": message, "bot": answer, "date": datetime.now()}
+        new_dialog_message = {"user": message, "bot": answer, "date": datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         db.set_dialog_messages(
             user_id,
             db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message],
@@ -227,8 +227,9 @@ async def error_handle(update: Update, context: CallbackContext) -> None:
         message_chunks = [message[i:i + message_chunk_size] for i in range(0, len(message), message_chunk_size)]
         for message_chunk in message_chunks:
             await context.bot.send_message(update.effective_chat.id, message_chunk, parse_mode=ParseMode.HTML)
-    except:
+    except Exception as e:
         await context.bot.send_message(update.effective_chat.id, "Some error in error handler")
+
 
 def run_bot() -> None:
     application = (
@@ -249,14 +250,14 @@ def run_bot() -> None:
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & user_filter, message_handle))
     application.add_handler(CommandHandler("retry", retry_handle, filters=user_filter))
     application.add_handler(CommandHandler("new", new_dialog_handle, filters=user_filter))
-    
+
     application.add_handler(CommandHandler("mode", show_chat_modes_handle, filters=user_filter))
     application.add_handler(CallbackQueryHandler(set_chat_mode_handle, pattern="^set_chat_mode"))
 
     application.add_handler(CommandHandler("balance", show_balance_handle, filters=user_filter))
-    
+
     application.add_error_handler(error_handle)
-    
+
     # start the bot
     application.run_polling()
 
