@@ -14,6 +14,8 @@ This repo is ChatGPT re-created with GPT-3.5 LLM as Telegram Bot. **And it works
 
 You can deploy your own bot, or use mine: [@chatgpt_karfly_bot](https://t.me/chatgpt_karfly_bot)
 
+if you want to use 'text-davinci-003' set the `use_chatgpt_api: false` in config.yml
+
 ## Features
 - Low latency replies (it usually takes about 3-5 seconds) 
 - No request limits
@@ -21,6 +23,7 @@ You can deploy your own bot, or use mine: [@chatgpt_karfly_bot](https://t.me/cha
 - Special chat modes: 👩🏼‍🎓 Assistant, 👩🏼‍💻 Code Assistant, 🎬 Movie Expert. More soon
 - List of allowed Telegram users
 - Track $ balance spent on OpenAI API
+- user `chatgpt-3.5-turbo` default
 
 ## Bot commands
 - `/retry` – Regenerate last bot answer
@@ -37,13 +40,17 @@ You can deploy your own bot, or use mine: [@chatgpt_karfly_bot](https://t.me/cha
 3. Edit `config/config.example.yml` to set your tokens and run 2 commands below (*if you're advanced user, you can also edit* `config/config.example.env`):
 ```bash
 mv config/config.yml config/config.yml
-mv config/config.env config/config.env
 ```
 
 🔥 And now **run**:
+you can generate the init database or use mine:
+
+```bash 
+python bot/models.py
+```
 
 ```bash
-docker-compose --env-file config/config.env up --build
+docker-compose up --build
 ```
 
 ## References
