@@ -1,6 +1,7 @@
-import yaml
-import dotenv
 from pathlib import Path
+
+import dotenv
+import yaml
 
 config_dir = Path(__file__).parent.parent.resolve() / "config"
 
@@ -14,6 +15,7 @@ config_env = dotenv.dotenv_values(config_dir / "config.env")
 # config parameters
 telegram_token = config_yaml["telegram_token"]
 openai_api_key = config_yaml["openai_api_key"]
+use_chatgpt_api = config_yaml.get('use_chatgpt_api', True)
 allowed_telegram_usernames = config_yaml["allowed_telegram_usernames"]
 new_dialog_timeout = config_yaml["new_dialog_timeout"]
 mongodb_uri = f"mongodb://mongo:{config_env['MONGODB_PORT']}"

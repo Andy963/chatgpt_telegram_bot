@@ -104,15 +104,16 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
 
     try:
         message = message or update.message.text
-
-        answer, prompt, n_used_tokens, n_first_dialog_messages_removed = chatgpt.ChatGPT().send_message(
+        gpt_obj = chatgpt.ChatGPT(use_chatgpt_api=config.use_chatgpt_api)
+        answer, n_used_tokens, n_first_dialog_messages_removed = gpt_obj.send_message(
             message,
             dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),
             chat_mode=db.get_user_attribute(user_id, "current_chat_mode"),
         )
 
         # update user data
-        new_dialog_message = {"role": "user", "content": message}
+        new_dialog_message = {"user": message, "assistant": answer,
+                              "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
         db.set_dialog_messages(
             user_id,
             db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message],
