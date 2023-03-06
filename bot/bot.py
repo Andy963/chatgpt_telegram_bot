@@ -4,7 +4,9 @@ import logging
 import traceback
 from datetime import datetime
 
+import openai
 import telegram
+from pydub import AudioSegment
 from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import (
@@ -101,9 +103,22 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
 
     # send typing action
     await update.message.chat.send_action(action="typing")
-
     try:
-        message = message or update.message.text
+        # get voice message and use whisper api translate it to text
+        if update.message.voice:
+            new_file = await context.bot.get_file(update.message.voice.file_id)
+            a_file = "audio.mp3"
+            await new_file.download_to_drive('audio.ogg')
+            audio = AudioSegment.from_file('audio.ogg')
+            audio.export(a_file, format="mp3")
+            with open(a_file, 'rb') as f:
+                await update.message.chat.send_action(action='record_audio')
+                transaction = openai.Audio.transcribe("whisper-1", f, language=config.default_language or 'en')
+                await update.message.reply_text(transaction.text)
+
+            message = transaction.text or "Sorry, I can't work with this audio messages 🙁"
+        else:
+            message = message or update.message.text
         gpt_obj = chatgpt.ChatGPT(use_chatgpt_api=config.use_chatgpt_api)
         answer, n_used_tokens, n_first_dialog_messages_removed = gpt_obj.send_message(
             message,
@@ -248,7 +263,8 @@ def run_bot() -> None:
     application.add_handler(CommandHandler("start", start_handle, filters=user_filter))
     application.add_handler(CommandHandler("help", help_handle, filters=user_filter))
 
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & user_filter, message_handle))
+    application.add_handler(
+        MessageHandler(filters.TEXT | filters.VOICE & ~filters.COMMAND & user_filter, message_handle))
     application.add_handler(CommandHandler("retry", retry_handle, filters=user_filter))
     application.add_handler(CommandHandler("new", new_dialog_handle, filters=user_filter))
 
