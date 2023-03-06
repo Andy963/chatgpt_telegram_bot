@@ -1,6 +1,8 @@
 import html
 import json
 import logging
+import os.path
+import time
 import traceback
 from datetime import datetime
 
@@ -103,13 +105,14 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
 
     # send typing action
     await update.message.chat.send_action(action="typing")
+    name = f"{update.message.chat_id}{int(time.time())}"
     try:
         # get voice message and use whisper api translate it to text
         if update.message.voice:
             new_file = await context.bot.get_file(update.message.voice.file_id)
-            a_file = "audio.mp3"
-            await new_file.download_to_drive('audio.ogg')
-            audio = AudioSegment.from_file('audio.ogg')
+            a_file = f"{name}.mp3"
+            await new_file.download_to_drive(f'{name}.ogg')
+            audio = AudioSegment.from_file(f'{name}.ogg')
             audio.export(a_file, format="mp3")
             with open(a_file, 'rb') as f:
                 await update.message.chat.send_action(action='record_audio')
@@ -142,6 +145,10 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         logger.error(error_text)
         await update.message.reply_text(error_text)
         return
+    finally:
+        for ext in ['mp3', 'ogg']:
+            if os.path.exists(file_name := f'{name}.{ext}'):
+                os.remove(file_name)
 
     # send message if some messages were removed from the context
     if n_first_dialog_messages_removed > 0:
