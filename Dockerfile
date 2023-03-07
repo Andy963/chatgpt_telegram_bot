@@ -15,4 +15,4 @@ WORKDIR /code
 RUN apt-get update  && apt-get install -y python3 python3-pip python-dev build-essential python3-venv && \
     pip3 install -r requirements.txt && rm -rf /root/.cache && apt-get autoclean && apt-get --purge autoremove -y python-dev gcc &&  rm -rf /tmp/* /var/lib/apt/* /var/cache/* /var/log/*
 
-CMD ["bash"]
+CMD ["python3","bot/bot.py"]

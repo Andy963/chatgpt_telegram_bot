@@ -57,6 +57,7 @@ docker-compose up --build
 TODO:
 - [x] support voice message.
 - [ ] voice reply
+- [x] code block
 
 ## References
 1. [*Build ChatGPT from GPT-3*](https://learnprompting.org/docs/applied_prompting/build_chatgpt)

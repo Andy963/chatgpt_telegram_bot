@@ -87,6 +87,41 @@ async def retry_handle(update: Update, context: CallbackContext):
     await message_handle(update, context, message=last_dialog_message["user"], use_new_dialog_timeout=False)
 
 
+def render_msg(msg):
+    """给bot渲染返回的消息
+    <b>text</b>：加粗文本
+    <i>text</i>：斜体文本
+    <u>text</u>：下划线文本
+    <s>text</s>：删除线文本
+    <a href="URL">text</a>：超链接文本
+    <code>text</code>：等宽文本
+    <pre>text</pre>：预格式化文本
+    message = '''
+    <pre>
+    <code>
+    def greet(name):
+        print(f"Hello, {name}!")
+
+    greet("World")
+    </code>
+    </pre>
+    '''
+    """
+    if '`' not in msg:
+        return msg
+    import re
+    p2 = re.compile(r'```.*?```', re.S)
+    r2 = re.findall(p2, msg)
+    for r in r2:
+        lang = r.split('\n')[0].split('```')[1]
+        msg = re.sub(f'```{lang}(.*?)```', rf'<pre><code>\1</code></pre>', msg, flags=re.S)
+    p1 = re.compile(r'`.*?`')
+    r1 = re.findall(p1, msg)
+    for r in r1:
+        msg = msg.replace(r, f"<code>{r.replace('`', '')}</code>")
+    return msg
+
+
 async def message_handle(update: Update, context: CallbackContext, message=None, use_new_dialog_timeout=True):
     # check if message is edited
     if update.edited_message is not None:
@@ -159,6 +194,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
     try:
+        answer = render_msg(answer)
         await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
     except telegram.error.BadRequest:
         # answer has invalid characters, so we send it without parse_mode
