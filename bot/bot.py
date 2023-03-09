@@ -11,18 +11,12 @@ import telegram
 from pydub import AudioSegment
 from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
-from telegram.ext import (
-    ApplicationBuilder,
-    CallbackContext,
-    CommandHandler,
-    MessageHandler,
-    CallbackQueryHandler,
-    filters
-)
+from telegram.ext import CallbackContext
 
-import chatgpt
-import config
-from database import Database
+from . import chatgpt
+from . import config
+from .database import Database
+from .helper import send_like_tying, render_msg_with_code
 
 # setup
 
@@ -61,7 +55,7 @@ async def start_handle(update: Update, context: CallbackContext):
 
     reply_text += "\nAnd now... ask me anything!"
 
-    await update.message.reply_text(reply_text, parse_mode=ParseMode.HTML)
+    await update.message.reply_text(reply_text)
 
 
 async def help_handle(update: Update, context: CallbackContext):
@@ -87,43 +81,9 @@ async def retry_handle(update: Update, context: CallbackContext):
     await message_handle(update, context, message=last_dialog_message["user"], use_new_dialog_timeout=False)
 
 
-def render_msg(msg):
-    """给bot渲染返回的消息
-    <b>text</b>：加粗文本
-    <i>text</i>：斜体文本
-    <u>text</u>：下划线文本
-    <s>text</s>：删除线文本
-    <a href="URL">text</a>：超链接文本
-    <code>text</code>：等宽文本
-    <pre>text</pre>：预格式化文本
-    message = '''
-    <pre>
-    <code>
-    def greet(name):
-        print(f"Hello, {name}!")
-
-    greet("World")
-    </code>
-    </pre>
-    '''
-    """
-    if '`' not in msg:
-        return msg
-    import re
-    p2 = re.compile(r'```.*?```', re.S)
-    r2 = re.findall(p2, msg)
-    for r in r2:
-        lang = r.split('\n')[0].split('```')[1]
-        msg = re.sub(f'```{lang}(.*?)```', rf'<pre><code>\1</code></pre>', msg, flags=re.S)
-    p1 = re.compile(r'`.*?`')
-    r1 = re.findall(p1, msg)
-    for r in r1:
-        msg = msg.replace(r, f"<code>{r.replace('`', '')}</code>")
-    return msg
-
-
 async def message_handle(update: Update, context: CallbackContext, message=None, use_new_dialog_timeout=True):
     # check if message is edited
+
     if update.edited_message is not None:
         await edited_message_handle(update, context)
         return
@@ -151,8 +111,11 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             audio.export(a_file, format="mp3")
             with open(a_file, 'rb') as f:
                 await update.message.chat.send_action(action='record_audio')
-                transaction = openai.Audio.transcribe("whisper-1", f, language=config.default_language or 'en')
-                await update.message.reply_text(transaction.text)
+                transaction = openai.Audio.transcribe("whisper-1", f, language=config.default_language)
+                if config.type_like_bot:
+                    await send_like_tying(update, context, transaction.text)
+                else:
+                    await update.message.reply_text(transaction.text)
 
             message = transaction.text or "Sorry, I can't work with this audio messages 🙁"
         else:
@@ -178,6 +141,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
     except Exception as e:
         error_text = f"Something went wrong during completion. Reason: {e}"
         logger.error(error_text)
+        # if error reply all the message rapidly
         await update.message.reply_text(error_text)
         return
     finally:
@@ -194,8 +158,11 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
     try:
-        answer = render_msg(answer)
-        await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
+        answer = render_msg_with_code(answer)
+        if config.typing_effect:
+            await send_like_tying(update, context, answer)
+        else:
+            await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
     except telegram.error.BadRequest:
         # answer has invalid characters, so we send it without parse_mode
         await update.message.reply_text(answer)
@@ -288,39 +255,3 @@ async def error_handle(update: Update, context: CallbackContext) -> None:
             await context.bot.send_message(update.effective_chat.id, message_chunk, parse_mode=ParseMode.HTML)
     except Exception as e:
         await context.bot.send_message(update.effective_chat.id, "Some error in error handler")
-
-
-def run_bot() -> None:
-    application = (
-        ApplicationBuilder()
-        .token(config.telegram_token)
-        .build()
-    )
-
-    # add handlers
-    if len(config.allowed_telegram_usernames) == 0:
-        user_filter = filters.ALL
-    else:
-        user_filter = filters.User(username=config.allowed_telegram_usernames)
-
-    application.add_handler(CommandHandler("start", start_handle, filters=user_filter))
-    application.add_handler(CommandHandler("help", help_handle, filters=user_filter))
-
-    application.add_handler(
-        MessageHandler(filters.TEXT | filters.VOICE & ~filters.COMMAND & user_filter, message_handle))
-    application.add_handler(CommandHandler("retry", retry_handle, filters=user_filter))
-    application.add_handler(CommandHandler("new", new_dialog_handle, filters=user_filter))
-
-    application.add_handler(CommandHandler("mode", show_chat_modes_handle, filters=user_filter))
-    application.add_handler(CallbackQueryHandler(set_chat_mode_handle, pattern="^set_chat_mode"))
-
-    application.add_handler(CommandHandler("balance", show_balance_handle, filters=user_filter))
-
-    application.add_error_handler(error_handle)
-
-    # start the bot
-    application.run_polling()
-
-
-if __name__ == "__main__":
-    run_bot()

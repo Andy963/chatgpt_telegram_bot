@@ -4,7 +4,7 @@ from typing import Optional, Any
 
 from sqlalchemy.orm import sessionmaker
 
-from models import User, Dialog, engine
+from .models import User, Dialog, engine
 
 
 class Database:
