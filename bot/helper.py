@@ -3,7 +3,9 @@
 import asyncio
 import random
 import re
+from datetime import datetime
 
+import azure.cognitiveservices.speech as speechsdk
 from telegram.constants import ParseMode
 
 
@@ -35,10 +37,10 @@ def render_msg_with_code(msg):
     for r in r2:
         lang = r.split('\n')[0].split('```')[1]
         msg = re.sub(f'```{lang}(.*?)```', rf'<pre><code>\1</code></pre>', msg, flags=re.S)
-    p1 = re.compile(r'`.*?`')
-    r1 = re.findall(p1, msg)
-    for r in r1:
-        msg = msg.replace(r, f"<code>{r.replace('`', '')}</code>")
+    # p1 = re.compile(r'`.*?`')
+    # r1 = re.findall(p1, msg)
+    # for r in r1:
+    #     msg = msg.replace(r, f"<code>{r.replace('`', '')}</code>")
     return msg
 
 
@@ -54,7 +56,7 @@ async def send_like_tying(update, context, text):
     i = 0
     length = len(text)
     while i < length:
-        num_chars = random.randint(1, 20) if length <= 50 else random.randint(1, 50)
+        num_chars = random.randint(1, 20)
 
         if not code_index:
             current_text = text[:i + num_chars]
@@ -77,4 +79,36 @@ async def send_like_tying(update, context, text):
                 await context.bot.edit_message_text(chat_id=msg.chat_id, message_id=msg.message_id, text=full_text,
                                                     parse_mode=ParseMode.HTML)
                 i += num_chars
-        await asyncio.sleep(random.uniform(0.1, 0.3))
+        await asyncio.sleep(random.uniform(0.1, 0.25))
+
+
+def text_to_speech(key: str, region: str, speech_lang: str, speech_voice: str, msg_id: int, text: str):
+    """
+    translate text to speech
+    :param key: azure_speech_key
+    :param region:  azure_speech_region
+    :param speech_lang: language of the voice that speaks
+    :param speech_voice:  voice name eg: zh-CN-XiaoxiaoNeural
+    :param msg_id:  telegram message id
+    :param text : text to speech
+    """
+    speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
+    file_name = f"./{datetime.now().strftime('%Y%m%d%H%M%S')}.wav"
+    audio_config = speechsdk.audio.AudioOutputConfig()
+
+    # The language of the voice that speaks.
+    speech_config.speech_synthesis_language = speech_lang
+    speech_config.speech_synthesis_voice_name = speech_voice
+
+    speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
+    try:
+        speech_synthesis_result = speech_synthesizer.speak_text_async(text).get()
+        print(speech_synthesis_result)
+        if speech_synthesis_result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted or \
+                speech_synthesis_result.audio_length >= 1:
+            return file_name
+        else:
+            return None
+    except Exception as ex:
+        print(ex)
+        return

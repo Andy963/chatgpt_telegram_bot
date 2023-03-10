@@ -1,9 +1,11 @@
 import html
 import json
 import logging
+import math
 import os.path
 import time
 import traceback
+import wave
 from datetime import datetime
 
 import openai
@@ -16,7 +18,7 @@ from telegram.ext import CallbackContext
 from . import chatgpt
 from . import config
 from .database import Database
-from .helper import send_like_tying, render_msg_with_code
+from .helper import send_like_tying, render_msg_with_code, text_to_speech
 
 # setup
 
@@ -112,10 +114,30 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             with open(a_file, 'rb') as f:
                 await update.message.chat.send_action(action='record_audio')
                 transaction = openai.Audio.transcribe("whisper-1", f, language=config.default_language)
-                if config.type_like_bot:
-                    await send_like_tying(update, context, transaction.text)
+                if config.reply_with_voice:
+                    audio_file = text_to_speech(config.azure_speech_key,
+                                                config.azure_speech_region,
+                                                config.azure_speech_lang,
+                                                config.azure_speech_voice,
+                                                update.message.chat_id,
+                                                transaction.text)
+                    # if text to speech failed - send text
+                    await update.message.chat.send_action(action='typing')
+                    if audio_file:
+                        await reply_multi_voice(update, context, audio_file)
+                        os.remove(audio_file)
+                    else:
+                        # translate text to speech failed - send text
+                        tip = "Sorry, I can't work with this audio messages 🙁. so I will send you text"
+                        if config.typing_effect:
+                            await send_like_tying(update, context, tip + transaction.text)
+                        else:
+                            await update.message.reply_text(tip + transaction.text)
                 else:
-                    await update.message.reply_text(transaction.text)
+                    if config.typing_effect:
+                        await send_like_tying(update, context, transaction.text)
+                    else:
+                        await update.message.reply_text(transaction.text)
 
             message = transaction.text or "Sorry, I can't work with this audio messages 🙁"
         else:
@@ -255,3 +277,40 @@ async def error_handle(update: Update, context: CallbackContext) -> None:
             await context.bot.send_message(update.effective_chat.id, message_chunk, parse_mode=ParseMode.HTML)
     except Exception as e:
         await context.bot.send_message(update.effective_chat.id, "Some error in error handler")
+
+
+async def reply_multi_voice(update: Update, context: CallbackContext, audio_file: str):
+    with wave.open(audio_file, 'rb') as audio_file:
+        # Get the audio file parameters
+        sample_width = audio_file.getsampwidth()
+        frame_rate = audio_file.getframerate()
+        num_frames = audio_file.getnframes()
+
+        # Calculate the audio duration
+        audio_duration = float(num_frames) / float(frame_rate)
+
+        # Split the audio into segments of maximum duration (in seconds)
+        max_duration = 50.0  # Telegram maximum audio duration is 1 minute
+        num_segments = int(math.ceil(audio_duration / max_duration))
+
+        for i in range(num_segments):
+            # Calculate the start and end frames of the segment
+            start_frame = int(i * max_duration * frame_rate)
+            end_frame = int(min((i + 1) * max_duration * frame_rate, num_frames))
+
+            # Read the segment data from the audio file
+            audio_file.setpos(start_frame)
+            segment_data = audio_file.readframes(end_frame - start_frame)
+
+            # Write the segment data to a temporary file
+            segment_filename = 'audio_file_segment_{}.wav'.format(i)
+            with wave.open(segment_filename, 'wb') as segment_file:
+                segment_file.setparams(audio_file.getparams())
+                segment_file.writeframes(segment_data)
+
+            # Send the segment as a Telegram audio message
+            with open(segment_filename, 'rb') as segment_file:
+                await context.bot.send_voice(chat_id=update.effective_chat.id, voice=segment_file)
+
+            # Delete the temporary file
+            os.remove(segment_filename)
