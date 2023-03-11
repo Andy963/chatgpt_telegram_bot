@@ -103,9 +103,11 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
     # send typing action
     await update.message.chat.send_action(action="typing")
     name = f"{update.message.chat_id}{int(time.time())}"
+    voice_flag = False
     try:
         # get voice message and use whisper api translate it to text
         if update.message.voice:
+            voice_flag = True
             new_file = await context.bot.get_file(update.message.voice.file_id)
             a_file = f"{name}.mp3"
             await new_file.download_to_drive(f'{name}.ogg')
@@ -114,30 +116,6 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             with open(a_file, 'rb') as f:
                 await update.message.chat.send_action(action='record_audio')
                 transaction = openai.Audio.transcribe("whisper-1", f, language=config.default_language)
-                if config.reply_with_voice:
-                    audio_file = text_to_speech(config.azure_speech_key,
-                                                config.azure_speech_region,
-                                                config.azure_speech_lang,
-                                                config.azure_speech_voice,
-                                                update.message.chat_id,
-                                                transaction.text)
-                    # if text to speech failed - send text
-                    await update.message.chat.send_action(action='typing')
-                    if audio_file:
-                        await reply_multi_voice(update, context, audio_file)
-                        os.remove(audio_file)
-                    else:
-                        # translate text to speech failed - send text
-                        tip = "Sorry, I can't work with this audio messages 🙁. so I will send you text"
-                        if config.typing_effect:
-                            await send_like_tying(update, context, tip + transaction.text)
-                        else:
-                            await update.message.reply_text(tip + transaction.text)
-                else:
-                    if config.typing_effect:
-                        await send_like_tying(update, context, transaction.text)
-                    else:
-                        await update.message.reply_text(transaction.text)
 
             message = transaction.text or "Sorry, I can't work with this audio messages 🙁"
         else:
@@ -180,11 +158,31 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
     try:
-        answer = render_msg_with_code(answer)
-        if config.typing_effect:
-            await send_like_tying(update, context, answer)
+        if config.reply_with_voice and voice_flag:
+            audio_file = text_to_speech(config.azure_speech_key,
+                                        config.azure_speech_region,
+                                        config.azure_speech_lang,
+                                        config.azure_speech_voice,
+                                        update.message.chat_id,
+                                        answer)
+            # if text to speech failed - send text
+            await update.message.chat.send_action(action='typing')
+            if audio_file:
+                await reply_multi_voice(update, context, audio_file)
+                os.remove(audio_file)
+            else:
+                # translate text to speech failed - send text
+                tip = "Sorry, I can't work with this audio messages 🙁. so I will send you text\n"
+                if config.typing_effect:
+                    await send_like_tying(update, context, tip + answer)
+                else:
+                    await update.message.reply_text(tip + answer)
         else:
-            await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
+            answer = render_msg_with_code(answer)
+            if config.typing_effect:
+                await send_like_tying(update, context, answer)
+            else:
+                await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
     except telegram.error.BadRequest:
         # answer has invalid characters, so we send it without parse_mode
         await update.message.reply_text(answer)

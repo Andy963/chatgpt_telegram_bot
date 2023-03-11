@@ -12,7 +12,7 @@ ENV PIP_DEFAULT_TIMEOUT=100
 RUN mkdir -p /code /etc/gpt
 ADD . /code
 WORKDIR /code
-RUN apt-get update  && apt-get install -y python3 python3-pip python-dev build-essential python3-venv && \
+RUN apt-get update  && apt-get install -y python3 python3-pip python-dev build-essential python3-venv ffmpeg && \
     pip3 install -r requirements.txt && rm -rf /root/.cache && apt-get autoclean && apt-get --purge autoremove -y python-dev gcc &&  rm -rf /tmp/* /var/lib/apt/* /var/cache/* /var/log/*
 
 CMD ["python3","app.py"]

@@ -56,7 +56,7 @@ async def send_like_tying(update, context, text):
     i = 0
     length = len(text)
     while i < length:
-        num_chars = random.randint(1, 20)
+        num_chars = random.randint(1, 20) if length < 50 else random.randint(1, 50)
 
         if not code_index:
             current_text = text[:i + num_chars]
@@ -94,12 +94,11 @@ def text_to_speech(key: str, region: str, speech_lang: str, speech_voice: str, m
     """
     speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
     file_name = f"./{datetime.now().strftime('%Y%m%d%H%M%S')}.wav"
-    audio_config = speechsdk.audio.AudioOutputConfig()
+    audio_config = speechsdk.audio.AudioOutputConfig(filename=file_name)
 
     # The language of the voice that speaks.
     speech_config.speech_synthesis_language = speech_lang
     speech_config.speech_synthesis_voice_name = speech_voice
-
     speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
     try:
         speech_synthesis_result = speech_synthesizer.speak_text_async(text).get()
@@ -110,5 +109,5 @@ def text_to_speech(key: str, region: str, speech_lang: str, speech_voice: str, m
         else:
             return None
     except Exception as ex:
-        print(ex)
+        print(f"text to speech except: {ex}")
         return
