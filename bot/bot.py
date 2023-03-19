@@ -116,6 +116,8 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             with open(a_file, 'rb') as f:
                 await update.message.chat.send_action(action='record_audio')
                 transaction = openai.Audio.transcribe("whisper-1", f, language=config.default_language)
+                # send the recognised text
+                await update.message.reply_text(transaction.text, parse_mode=ParseMode.HTML)
 
             message = transaction.text or "Sorry, I can't work with this audio messages 🙁"
         else:
@@ -167,16 +169,18 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
                                         answer)
             # if text to speech failed - send text
             await update.message.chat.send_action(action='typing')
+            # send text first
+            await update.message.reply_text(text, parse_mode=ParseMode.HTML)
             if audio_file:
                 await reply_multi_voice(update, context, audio_file)
                 os.remove(audio_file)
             else:
                 # translate text to speech failed - send text
-                tip = "Sorry, I can't work with this audio messages 🙁. so I will send you text\n"
+                tip = "Sorry, I can't work with this audio messages 🙁. so I can only answer you with text\n"
                 if config.typing_effect:
-                    await send_like_tying(update, context, tip + answer)
+                    await send_like_tying(update, context, tip)
                 else:
-                    await update.message.reply_text(tip + answer)
+                    await update.message.reply_text(tip)
         else:
             answer = render_msg_with_code(answer)
             if config.typing_effect:
