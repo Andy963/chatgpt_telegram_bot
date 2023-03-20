@@ -14,7 +14,7 @@ from pydub import AudioSegment
 from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
-
+from .log import logger
 from . import chatgpt
 from . import config
 from .database import Database
@@ -23,7 +23,7 @@ from .helper import send_like_tying, render_msg_with_code, text_to_speech
 # setup
 
 db = Database()
-logger = logging.getLogger(__name__)
+
 
 HELP_MESSAGE = """Commands:
 ⚪ /retry – Regenerate last bot answer
@@ -115,9 +115,10 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             audio.export(a_file, format="mp3")
             with open(a_file, 'rb') as f:
                 await update.message.chat.send_action(action='record_audio')
-                transaction = openai.Audio.transcribe("whisper-1", f, language=config.default_language)
+                transaction = openai.Audio.transcribe("whisper-1", file=f)
                 # send the recognised text
-                await update.message.reply_text(transaction.text, parse_mode=ParseMode.HTML)
+                text = 'You said: ' + transaction.text
+                await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
             message = transaction.text or "Sorry, I can't work with this audio messages 🙁"
         else:
@@ -170,7 +171,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             # if text to speech failed - send text
             await update.message.chat.send_action(action='typing')
             # send text first
-            await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+            await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
             if audio_file:
                 await reply_multi_voice(update, context, audio_file)
                 os.remove(audio_file)
