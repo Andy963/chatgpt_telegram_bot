@@ -11,7 +11,7 @@ from telegram.ext import (
 
 from bot import config
 from bot.bot import start_handle, help_handle, message_handle, retry_handle, new_dialog_handle, show_chat_modes_handle, \
-    set_chat_mode_handle, show_balance_handle, error_handle
+    set_chat_mode_handle, show_balance_handle, error_handle, voice_message_handle
 
 
 def run_bot() -> None:
@@ -31,10 +31,10 @@ def run_bot() -> None:
     application.add_handler(CommandHandler("help", help_handle, filters=user_filter))
 
     application.add_handler(
-        MessageHandler(filters.TEXT | filters.VOICE & ~filters.COMMAND & user_filter, message_handle))
+        MessageHandler(filters.TEXT & ~filters.COMMAND & user_filter, message_handle))
     application.add_handler(CommandHandler("retry", retry_handle, filters=user_filter))
     application.add_handler(CommandHandler("new", new_dialog_handle, filters=user_filter))
-
+    application.add_handler(MessageHandler(filters.VOICE & user_filter, voice_message_handle))
     application.add_handler(CommandHandler("mode", show_chat_modes_handle, filters=user_filter))
     application.add_handler(CallbackQueryHandler(set_chat_mode_handle, pattern="^set_chat_mode"))
 

@@ -8,6 +8,8 @@ from datetime import datetime
 import azure.cognitiveservices.speech as speechsdk
 from telegram.constants import ParseMode
 
+from bot.log import logger
+
 
 def render_msg_with_code(msg):
     """给bot渲染返回的消息
@@ -98,7 +100,7 @@ def text_to_speech(key: str, region: str, speech_lang: str, speech_voice: str, m
     speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
     try:
         speech_synthesis_result = speech_synthesizer.speak_text_async(text).get()
-        print(speech_synthesis_result)
+        logger.info(speech_synthesis_result)
         if speech_synthesis_result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted or \
                 speech_synthesis_result.audio_length >= 1:
             return file_name

@@ -21,5 +21,5 @@ azure_speech_region = config_yaml["azure_speech_region"]
 azure_speech_lang = config_yaml["azure_speech_lang"]
 azure_speech_voice = config_yaml["azure_speech_voice"]
 reply_with_voice = config_yaml["reply_with_voice"]
-
+enable_message_streaming = config_yaml.get("enable_message_streaming", True)
 log = '/var/log/chatgpt.log'
