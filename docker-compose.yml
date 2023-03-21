@@ -1,4 +1,4 @@
-version: "3.5"
+version: "3.6"
 
 services:
   bot:
@@ -8,3 +8,5 @@ services:
     build:
       context: "."
       dockerfile: Dockerfile
+
+

@@ -17,6 +17,7 @@ new_dialog_timeout = config_yaml["new_dialog_timeout"]
 default_language = config_yaml.get("default_language", 'en')
 typing_effect = config_yaml["typing_effect"]
 azure_speech_key = config_yaml["azure_speech_key"]
+azure_text_key = config_yaml["azure_text_key"]
 azure_speech_region = config_yaml["azure_speech_region"]
 azure_speech_lang = config_yaml["azure_speech_lang"]
 azure_speech_voice = config_yaml["azure_speech_voice"]

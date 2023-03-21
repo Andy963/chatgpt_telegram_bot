@@ -12,6 +12,7 @@ from telegram.ext import (
 from bot import config
 from bot.bot import start_handle, help_handle, message_handle, retry_handle, new_dialog_handle, show_chat_modes_handle, \
     set_chat_mode_handle, show_balance_handle, error_handle, voice_message_handle
+from bot.log import logger
 
 
 def run_bot() -> None:
@@ -47,4 +48,5 @@ def run_bot() -> None:
 
 
 if __name__ == "__main__":
+    logger.info('Starting bot...')
     run_bot()

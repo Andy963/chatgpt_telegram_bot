@@ -1,7 +1,7 @@
 FROM python:3.8-slim
 
 
-RUN mkdir -p /code /etc/gpt
+RUN mkdir -p /code
 ADD . /code
 WORKDIR /code
 RUN apt-get update  && apt-get install -y  ffmpeg && \

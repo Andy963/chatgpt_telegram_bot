@@ -29,8 +29,8 @@ class FileSplitLogger:
                  encoding='utf-8',
                  to_stream=False,
                  fmt='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s'):
-        f_dir, f_name = os.path.split(filename)
-        os.makedirs(f_dir, exist_ok=True)  # 当前目录新建log文件夹
+        # f_dir, f_name = os.path.split(filename)
+        # os.makedirs(f_dir, exist_ok=True)  # 当前目录新建log文件夹
 
         format_str = logging.Formatter(fmt)  # 设置日志格式
 
@@ -52,6 +52,6 @@ class FileSplitLogger:
         return self.logger
 
 
-logger = FileSplitLogger(filename=config.log, level='debug', to_stream=True)()
+logger = FileSplitLogger(filename=config.log, level='debug')()
 if __name__ == '__main__':
     logger = FileSplitLogger('./logs/test.log', 'debug', max_bytes=100, )()

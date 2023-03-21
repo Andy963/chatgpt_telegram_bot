@@ -1,14 +1,11 @@
 import asyncio
 import html
 import json
-import math
-import os.path
 import time
 import traceback
-import wave
 from datetime import datetime
+from pathlib import Path
 
-import openai
 import telegram
 from pydub import AudioSegment
 from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup
@@ -18,7 +15,7 @@ from telegram.ext import CallbackContext
 from . import chatgpt
 from . import config
 from .database import Database
-from .helper import text_to_speech, send_like_tying
+from .helper import send_like_tying, speech_to_text, reply_voice
 from .log import logger
 
 # setup
@@ -176,11 +173,13 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
 
 
 async def voice_message_handle(update: Update, context: CallbackContext):
+    logger.info('voice message handler:')
     await register_user_if_not_exists(update, context, update.message.from_user)
 
     user_id = update.message.from_user.id
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
     name = f"{update.message.chat_id}{int(time.time())}"
+    logger.info(f'filename:{name}')
     try:
         # get voice message and use whisper api translate it to text
         if update.message.voice:
@@ -188,40 +187,35 @@ async def voice_message_handle(update: Update, context: CallbackContext):
             a_file = f"{name}.mp3"
             await new_file.download_to_drive(f'{name}.ogg')
             audio = AudioSegment.from_file(f'{name}.ogg')
-            audio.export(a_file, format="mp3")
-            with open(a_file, 'rb') as f:
-                await update.message.chat.send_action(action='record_audio')
-                transaction = openai.Audio.transcribe("whisper-1", file=f)
-                # send the recognised text
-                text = 'You said: ' + transaction.text
-                if config.typing_effect:
-                    await send_like_tying(update, context, text)
-                else:
-                    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
-                    gpt_obj = chatgpt.ChatGPT(use_chatgpt_api=config.use_chatgpt_api)
-                    answer, n_used_tokens, _ = gpt_obj.send_message(
-                        transaction.text, dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),
-                        chat_mode=db.get_user_attribute(user_id, "current_chat_mode")
-                    )
-                    new_dialog_message = {"user": transaction.text, "assistant": answer,
-                                          "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
-                    db.set_dialog_messages(
-                        user_id,
-                        db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message],
-                        dialog_id=None
-                    )
+            audio.export(a_file, format="wav")
+            await update.message.chat.send_action(action='record_audio')
+            recognized_text = speech_to_text(config.azure_text_key, config.azure_speech_region, a_file) or ''
+            # send the recognised text
+            logger.info(f'transcription:{recognized_text}')
+            text = 'You said: ' + recognized_text
+            if config.typing_effect:
+                await send_like_tying(update, context, text)
+            else:
+                await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+            gpt_obj = chatgpt.ChatGPT(use_chatgpt_api=config.use_chatgpt_api)
+            answer, n_used_tokens, _ = gpt_obj.send_message(
+                recognized_text, dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),
+                chat_mode=db.get_user_attribute(user_id, "current_chat_mode")
+            )
+            logger.info(f'answer:{answer}')
+            if config.typing_effect:
+                await send_like_tying(update, context, answer)
+            else:
+                await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
+            new_dialog_message = {"user": recognized_text, "assistant": answer,
+                                  "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
+            db.set_dialog_messages(
+                user_id,
+                db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message],
+                dialog_id=None
+            )
+            await reply_voice(update, context, answer)
 
-                audio_file = text_to_speech(config.azure_speech_key,
-                                            config.azure_speech_region,
-                                            config.azure_speech_lang,
-                                            config.azure_speech_voice,
-                                            update.message.chat_id,
-                                            transaction.text)
-                if audio_file:
-                    await reply_multi_voice(update, context, audio_file)
-                    os.remove(audio_file)
-                else:
-                    await update.message.reply_text("Text to speech failed")
     except Exception as e:
         error_text = f"Sth went wrong: {e}"
         logger.error(f" error stack: {traceback.format_exc()}")
@@ -229,8 +223,8 @@ async def voice_message_handle(update: Update, context: CallbackContext):
         await update.message.reply_text(error_text)
     finally:
         for ext in ['mp3', 'ogg']:
-            if os.path.exists(file_name := f'{name}.{ext}'):
-                os.remove(file_name)
+            if Path(file_name := f'{name}.{ext}').exists():
+                Path(file_name).unlink()
 
 
 async def new_dialog_handle(update: Update, context: CallbackContext):
@@ -320,40 +314,3 @@ async def error_handle(update: Update, context: CallbackContext) -> None:
             await context.bot.send_message(update.effective_chat.id, message_chunk, parse_mode=ParseMode.HTML)
     except Exception as e:
         await context.bot.send_message(update.effective_chat.id, "Some error in error handler")
-
-
-async def reply_multi_voice(update: Update, context: CallbackContext, audio_file: str):
-    with wave.open(audio_file, 'rb') as audio_file:
-        # Get the audio file parameters
-        sample_width = audio_file.getsampwidth()
-        frame_rate = audio_file.getframerate()
-        num_frames = audio_file.getnframes()
-
-        # Calculate the audio duration
-        audio_duration = float(num_frames) / float(frame_rate)
-
-        # Split the audio into segments of maximum duration (in seconds)
-        max_duration = 50.0  # Telegram maximum audio duration is 1 minute
-        num_segments = int(math.ceil(audio_duration / max_duration))
-
-        for i in range(num_segments):
-            # Calculate the start and end frames of the segment
-            start_frame = int(i * max_duration * frame_rate)
-            end_frame = int(min((i + 1) * max_duration * frame_rate, num_frames))
-
-            # Read the segment data from the audio file
-            audio_file.setpos(start_frame)
-            segment_data = audio_file.readframes(end_frame - start_frame)
-
-            # Write the segment data to a temporary file
-            segment_filename = 'audio_file_segment_{}.wav'.format(i)
-            with wave.open(segment_filename, 'wb') as segment_file:
-                segment_file.setparams(audio_file.getparams())
-                segment_file.writeframes(segment_data)
-
-            # Send the segment as a Telegram audio message
-            with open(segment_filename, 'rb') as segment_file:
-                await context.bot.send_voice(chat_id=update.effective_chat.id, voice=segment_file)
-
-            # Delete the temporary file
-            os.remove(segment_filename)
