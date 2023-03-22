@@ -24,9 +24,9 @@ if you want to use 'text-davinci-003' set the `use_chatgpt_api: false` in config
 - Code highlighting
 - Special chat modes: 👩🏼‍🎓 Assistant, 👩🏼‍💻 Code Assistant, 🎬 Movie Expert. More soon
 - List of allowed Telegram users
-- Track $ balance spent on OpenAI API
 - user `chatgpt-3.5-turbo` default
 - reply with voice message (use azure text to speech)
+- multi language voice message support
 
 ## Bot commands
 
@@ -58,6 +58,7 @@ TODO:
 - [x] voice reply (use azure text to speech)
 - [x] code block
 - [x] typing effect
+- [x] reply with multiple language voice (contains En & Zh, need azure)
 
 if you are using ubuntu 22.04, you need to install the latest libssl1.1 either as a binary package, or by compiling it
 from sources.
