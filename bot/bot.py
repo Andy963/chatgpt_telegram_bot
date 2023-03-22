@@ -15,7 +15,7 @@ from telegram.ext import CallbackContext
 from . import chatgpt
 from . import config
 from .database import Database
-from .helper import send_like_tying, speech_to_text, reply_voice
+from .helper import send_like_tying, speech_to_text, reply_voice, check_contain_code, render_msg_with_code
 from .log import logger
 
 # setup
@@ -189,9 +189,8 @@ async def voice_message_handle(update: Update, context: CallbackContext):
             audio = AudioSegment.from_file(f'{name}.ogg')
             audio.export(a_file, format="wav")
             await update.message.chat.send_action(action='record_audio')
-            recognized_text = speech_to_text(config.azure_text_key, config.azure_speech_region, a_file) or ''
+            recognized_text = speech_to_text(a_file) or ''
             # send the recognised text
-            logger.info(f'transcription:{recognized_text}')
             text = 'You said: ' + recognized_text
             if config.typing_effect:
                 await send_like_tying(update, context, text)
@@ -202,11 +201,16 @@ async def voice_message_handle(update: Update, context: CallbackContext):
                 recognized_text, dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),
                 chat_mode=db.get_user_attribute(user_id, "current_chat_mode")
             )
-            logger.info(f'answer:{answer}')
-            if config.typing_effect:
-                await send_like_tying(update, context, answer)
-            else:
+            logger.info(f'chatgpt answered: {answer}')
+            if check_contain_code(answer):
+                answer = render_msg_with_code(answer)
                 await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
+            else:
+                if config.typing_effect:
+                    await send_like_tying(update, context, answer)
+                else:
+                    await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
+                await reply_voice(update, context, answer)
             new_dialog_message = {"user": recognized_text, "assistant": answer,
                                   "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
             db.set_dialog_messages(
@@ -214,7 +218,6 @@ async def voice_message_handle(update: Update, context: CallbackContext):
                 db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message],
                 dialog_id=None
             )
-            await reply_voice(update, context, answer)
 
     except Exception as e:
         error_text = f"Sth went wrong: {e}"

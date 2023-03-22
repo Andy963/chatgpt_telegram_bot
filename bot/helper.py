@@ -62,7 +62,7 @@ async def send_like_tying(update, context, text):
     i = 0
     length = len(text)
     while i < length:
-        num_chars = random.randint(1, 20) if length < 50 else random.randint(1, 50)
+        num_chars = random.randint(2, 20) if length < 50 else random.randint(2, 50)
 
         if not code_index:
             current_text = text[:i + num_chars]
@@ -88,7 +88,63 @@ async def send_like_tying(update, context, text):
         await asyncio.sleep(random.uniform(0.01, 0.15))
 
 
-def text_to_speech(key: str, region: str, speech_lang: str, speech_voice: str, msg_id: int, text: str):
+def parse_text(text):
+    """
+    parse string which contains chinese and english and punctaution
+    return : [{lang:zh,text:中文},{lang:en,text:english},{lang:punctuation,text:,.}]
+    """
+    ch_pattern = re.compile(r'[\u4e00-\u9fa5]+')
+    en_pattern = re.compile(r'[a-zA-Z ]+')
+
+    rs = []
+    while text:
+        temp = text
+        ch = ch_pattern.match(text)
+        if ch:
+            rs.append({'lang': 'zh', 'text': ch.group()})
+            text = text[len(ch.group()):]
+        en = en_pattern.match(text)
+        if en:
+            rs.append({'lang': 'en', 'text': en.group()})
+            text = text[len(en.group()):]
+        if temp == text:
+            # not chinese and not english char
+            rs.append({'lang': 'punctuation', 'text': text[0]})
+            text = text[1:]
+    return rs
+
+
+def create_xml(text_data: list):
+    """create SSML xml string """
+    xml_list = ['<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">', ]
+    length = len(text_data)
+    for index, data in enumerate(text_data):
+        cur_lang = data['lang']
+        if cur_lang in ['zh', 'en']:
+            lang_name = "zh-CN-XiaoxiaoNeural" if data['lang'] == 'zh' else 'en-US-JennyNeural'
+            cur = f'<voice name="{lang_name}">{data["text"]}'
+            next_ = index + 1
+            if next_ < length:
+                next_lang = text_data[next_]['lang']
+                if next_lang == 'punctuation':
+                    if text_data[next_]['text'] in [',', '，']:
+                        cur += f'<break strength="medium"/>'
+                    elif text_data[next_]['text'] in ['.', '。', '-', '——']:
+                        cur += f'<break strength="strong"/>'
+                    elif text_data[next_]['text'] in [':', '：']:
+                        cur += f'<break strength="weak"/>'
+
+                    cur += '</voice>'
+                    xml_list.append(cur)
+                    continue
+            cur += '</voice>'
+            xml_list.append(cur)
+
+    xml_list.append('</speak>')
+    return ' '.join(xml_list)
+
+
+def text_to_speech(key: str, region: str, msg_id: int, text: str):
     """
     translate text to speech
     :param key: azure_speech_key
@@ -105,11 +161,10 @@ def text_to_speech(key: str, region: str, speech_lang: str, speech_voice: str, m
     audio_config = speechsdk.audio.AudioOutputConfig(filename=file_name)
 
     # The language of the voice that speaks.
-    speech_config.speech_synthesis_language = speech_lang
-    speech_config.speech_synthesis_voice_name = speech_voice
     speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
     try:
-        speech_synthesis_result = speech_synthesizer.speak_text_async(text).get()
+        ssml_text = create_xml(parse_text(text))
+        speech_synthesis_result = speech_synthesizer.speak_ssml_async(ssml_text).get()
         logger.info(speech_synthesis_result)
         if speech_synthesis_result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
             with wave.open(file_name, 'rb') as f:
@@ -127,23 +182,28 @@ def text_to_speech(key: str, region: str, speech_lang: str, speech_voice: str, m
         return None
 
 
-def speech_to_text(key: str, region: str, filename: str):
+def speech_to_text(filename: str):
     """azure 语音识别"""
 
     logger.info('speech to text:')
 
-
     try:
+        # use openai whisper to transcribe speech
         with open(filename, 'rb') as f:
+            # do not set language params to recognize multi language
             transaction = openai.Audio.transcribe('whisper-1', file=f)
             logger.info(f'whisper transcribe text: {transaction.text}')
         if transaction.text:
             return transaction.text
-        else:
+
+    except Exception as e:
+        if config.azure_speech_key:
+            # use azure api to recognize speech
             langs = ["en-US", "zh-CN"]
             auto_detect_source_language_config = \
                 speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=langs)
-            speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
+            speech_config = speechsdk.SpeechConfig(subscription=config.azure_speech_key,
+                                                   region=config.azure_speech_region)
             audio_config = speechsdk.audio.AudioConfig(filename=filename)
             speech_recognizer = speechsdk.SpeechRecognizer(
                 speech_config=speech_config,
@@ -157,37 +217,29 @@ def speech_to_text(key: str, region: str, filename: str):
             if detected_language in langs:
                 logger.info(f'result: {result}')
                 if result.reason == speechsdk.ResultReason.RecognizedSpeech:
-                    logger.info("Recognized: {}".format(result.text))
+                    logger.info("Azure Recognized: {}".format(result.text))
                     return result.text
-
-    except Exception as e:
+            else:
+                logger.error(f'detect language error: not en, zh. result: {result}')
+                return None
         logger.error(f"recognize except: {e}")
         logger.error(f"traceback: {traceback.format_exc()}")
     return None
 
 
-def check_contain_ch(check_str):
+def check_contain_code(check_str):
     """
-    check if the str contains English char
+    check if the str contains code
     """
-    flag = False
-    for ch in check_str:
-        if re.match(u'[\u4E00-\u9FFF]', ch):
-            flag = True
-            break
-    return flag
+    return True if re.search(r'```.*```', check_str) else False
 
 
 async def reply_voice(update, context, answer):
     """
      check if it's only single language if it's then reply with voice
     """
-    if check_contain_ch(answer):
-        return
     audio_file = text_to_speech(config.azure_speech_key,
                                 config.azure_speech_region,
-                                config.azure_speech_lang,
-                                config.azure_speech_voice,
                                 update.message.chat_id,
                                 answer)
     if audio_file and Path(audio_file).exists():
