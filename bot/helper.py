@@ -4,6 +4,7 @@ import asyncio
 import math
 import random
 import re
+import time
 import traceback
 import wave
 from datetime import datetime
@@ -11,12 +12,17 @@ from pathlib import Path
 
 import azure.cognitiveservices.speech as speechsdk
 import openai
+import requests
+from azure.cognitiveservices.vision.computervision import ComputerVisionClient
+from msrest.authentication import CognitiveServicesCredentials
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
 
 from bot import config
 from .log import logger
+
+client = ComputerVisionClient(config.endpoint, CognitiveServicesCredentials(config.subscription_key))
 
 
 def render_msg_with_code(msg):
@@ -292,3 +298,44 @@ async def reply_multi_voice(update: Update, context: CallbackContext, audio_file
     except Exception as e:
         logger.error(f'error in reply_multi_voice: {e}')
         logger.error(f"error stack: {traceback.format_exc()}")
+
+
+async def azure_ocr(image_path: str):
+    """Use Azure OCR to recognize text in image"""
+    text = ""
+    if not Path(image_path).exists():
+        return text
+    img_stream = open(image_path, "rb")
+    try:
+        times = 5
+        response = client.read_in_stream(img_stream, language="zh-Hans", model_version="latest", raw=True)
+        result_url = response.headers.get('Operation-Location')
+        result = requests.get(result_url, headers={"Ocp-Apim-Subscription-Key": config.subscription_key}).json()
+        while times and result.get('status') != 'succeeded':
+            time.sleep(0.03)
+            result = requests.get(result_url, headers={"Ocp-Apim-Subscription-Key": config.subscription_key}).json()
+            for rs in result['analyzeResult']['readResults']:
+                for line in rs['lines']:
+                    text += f"{line['text']}\n"
+            times -= 1
+        else:
+            for rs in result['analyzeResult']['readResults']:
+                for line in rs['lines']:
+                    text += f"{line['text']}\n"
+            return text
+    except Exception as e:
+        logger.error(e)
+        logger.error(f"traceback: {traceback.format_exc()}")
+    finally:
+        img_stream.close()
+        Path(image_path).unlink()
+    return text
+
+
+def get_main_lang(text):
+    """count the main language in text"""
+    ch = ''.join(re.findall(r'[\u4e00-\u9fa5]', text))
+    en = ''.join(re.findall(r'[a-zA-Z]', text))
+    if len(ch) > len(en):
+        return 'Chinese'
+    return 'English'

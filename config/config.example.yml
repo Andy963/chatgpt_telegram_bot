@@ -1,4 +1,12 @@
-telegram_token: ""
-openai_api_key: ""
-allowed_telegram_usernames: []  # if empty, the bot is available to anyone
+telegram_token: "" # get from botfather
+openai_api_key: "" # openai api key
+azure_speech_key: "" # azure speech to text
+azure_text_key: "" # azure text to speech
+azure_ocr_key: "" #azure ocr key
+endpoint: # azure ocr endpoint
+azure_speech_region: "eastasia"
+use_chatgpt_api: true
+allowed_telegram_usernames: [ ]  # if empty, the bot is available to anyone
 new_dialog_timeout: 600  # new dialog starts after timeout (in seconds)
+typing_effect: true
+reply_with_voice: true

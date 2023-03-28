@@ -26,7 +26,8 @@ if you want to use 'text-davinci-003' set the `use_chatgpt_api: false` in config
 - List of allowed Telegram users
 - user `chatgpt-3.5-turbo` default
 - reply with voice message (use azure text to speech)
-- multi language voice message support
+- multi language voice message support (azure TTS)
+- picture ocr and translate, summary, tell story joke etc.
 
 ## Bot commands
 
@@ -59,7 +60,10 @@ TODO:
 - [x] code block
 - [x] typing effect
 - [x] reply with multiple language voice (contains En & Zh, need azure)
-
+- [x] picture ocr and translate, summary, tell story joke etc.
+- [ ] voice story
+- [ ] prompt list
+- [ ] pdf && article analysis
 if you are using ubuntu 22.04, you need to install the latest libssl1.1 either as a binary package, or by compiling it
 from sources.
 

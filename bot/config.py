@@ -19,4 +19,6 @@ azure_speech_key = config_yaml.get("azure_speech_key", None)
 azure_text_key = config_yaml.get("azure_text_key", None)
 azure_speech_region = config_yaml.get("azure_speech_region", 'eastasia')
 enable_message_streaming = config_yaml.get("enable_message_streaming", True)
-log = '/var/log/chatgpt.log'
+endpoint = config_yaml.get("endpoint")
+subscription_key = config_yaml.get("azure_ocr_key")
+log = '/etc/gpt/chatgpt.log'

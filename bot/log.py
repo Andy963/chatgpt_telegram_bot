@@ -52,6 +52,6 @@ class FileSplitLogger:
         return self.logger
 
 
-logger = FileSplitLogger(filename=config.log, level='debug')()
+logger = FileSplitLogger(filename=config.log, level='debug', to_stream=False)()
 if __name__ == '__main__':
     logger = FileSplitLogger('./logs/test.log', 'debug', max_bytes=100, )()

@@ -15,7 +15,8 @@ from telegram.ext import CallbackContext
 from . import chatgpt
 from . import config
 from .database import Database
-from .helper import send_like_tying, speech_to_text, reply_voice, check_contain_code, render_msg_with_code
+from .helper import send_like_tying, speech_to_text, reply_voice, check_contain_code, render_msg_with_code, azure_ocr, \
+    get_main_lang
 from .log import logger
 
 # setup
@@ -26,7 +27,6 @@ HELP_MESSAGE = """Commands:
 ⚪ /retry – Regenerate last bot answer
 ⚪ /new – Start new dialog
 ⚪ /mode – Select chat mode
-⚪ /balance – Show balance
 ⚪ /help – Show help
 """
 
@@ -101,6 +101,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
     await update.message.chat.send_action(action="typing")
     try:
         message = message or update.message.text
+        message_id = update.message.message_id
         gpt_obj = chatgpt.ChatGPT(use_chatgpt_api=config.use_chatgpt_api)
         gen_answer = gpt_obj.send_message_stream(message,
                                                  dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),
@@ -115,20 +116,21 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             if status == "not_finished":
                 status, answer = gen_item
             elif status == "finished":
-                status, answer, n_used_tokens, n_first_dialog_messages_removed = gen_item
+                status, answer, n_first_dialog_messages_removed = gen_item
             else:
                 raise ValueError(f"Streaming status {status} is unknown")
 
             answer = answer[:4096]  # telegram message limit
             if i == 0:  # send first message (then it'll be edited if message streaming is enabled)
                 try:
-                    sent_message = await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
+                    sent_message = await update.message.reply_text(answer, reply_to_message_id=message_id,
+                                                                   parse_mode=ParseMode.HTML)
                 except telegram.error.BadRequest as e:
                     if str(e).startswith("Message must be non-empty"):  # first answer chunk from openai was empty
                         i = -1  # try again to send first message
                         continue
                     else:
-                        sent_message = await update.message.reply_text(answer)
+                        sent_message = await update.message.reply_text(answer, reply_to_message_id=message_id, )
             else:  # edit sent message
                 # update only when 100 new symbols are ready
                 if abs(len(answer) - len(prev_answer)) < 100 and status != "finished":
@@ -154,8 +156,6 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message],
             dialog_id=None
         )
-
-
     except Exception as e:
         error_text = f"Sth went wrong: {e}"
         logger.error(f" error stack: {traceback.format_exc()}")
@@ -197,7 +197,7 @@ async def voice_message_handle(update: Update, context: CallbackContext):
             else:
                 await update.message.reply_text(text, parse_mode=ParseMode.HTML)
             gpt_obj = chatgpt.ChatGPT(use_chatgpt_api=config.use_chatgpt_api)
-            answer, n_used_tokens, _ = gpt_obj.send_message(
+            answer, _ = gpt_obj.send_message(
                 recognized_text, dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),
                 chat_mode=db.get_user_attribute(user_id, "current_chat_mode")
             )
@@ -275,24 +275,84 @@ async def set_chat_mode_handle(update: Update, context: CallbackContext):
     await query.edit_message_text(f"{chatgpt.CHAT_MODES[chat_mode]['welcome_message']}", parse_mode=ParseMode.HTML)
 
 
-async def show_balance_handle(update: Update, context: CallbackContext):
+async def edited_message_handle(update: Update, context: CallbackContext):
+    text = "🥲 Unfortunately, message <b>editing</b> is not supported"
+    await update.edited_message.reply_text(text, parse_mode=ParseMode.HTML)
+
+
+async def photo_handle(update: Update, context: CallbackContext):
+    logger.info('picture message handler:')
+
     await register_user_if_not_exists(update, context, update.message.from_user)
 
     user_id = update.message.from_user.id
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
+    name = f"{update.message.chat_id}_{int(time.time())}.jpg"
+    logger.info(f'filename:{name}')
+    try:
+        if update.message.photo:
+            # give choice to ocr or ocr and translate to chinese or ocr and translate to english
+            choice = []
+            choice.append(InlineKeyboardButton("OCR", callback_data=f"ocr|{name}|None"))
+            choice.append(InlineKeyboardButton("ZH", callback_data=f"ocr|{name}|zh"))
+            choice.append(InlineKeyboardButton("EN", callback_data=f"ocr|{name}|en"))
+            choice.append(InlineKeyboardButton("Summary", callback_data=f"summary|{name}|None"))
+            choice.append(InlineKeyboardButton("Story", callback_data=f"story|{name}|None"))
+            choice.append(InlineKeyboardButton("Joke", callback_data=f"joke|{name}|None"))
+            await update.message.reply_text("What do you want to do with the picture?",
+                                            reply_to_message_id=update.message.message_id,
+                                            reply_markup=InlineKeyboardMarkup([choice]))
 
-    n_used_tokens = db.get_user_attribute(user_id, "n_used_tokens")
-    n_spent_dollars = n_used_tokens * (0.002 / 1000)
-
-    text = f"You spent <b>{n_spent_dollars:.03f}$</b>\n"
-    text += f"You used <b>{n_used_tokens}</b> tokens <i>(price: 0.02$ per 1000 tokens)</i>\n"
-
-    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"photo handle: {traceback.format_exc()}")
+        await update.message.reply_text(f"Sth went wrong: {e}")
+        logger.error(f"photo handle error stack: {traceback.format_exc()}")
 
 
-async def edited_message_handle(update: Update, context: CallbackContext):
-    text = "🥲 Unfortunately, message <b>editing</b> is not supported"
-    await update.edited_message.reply_text(text, parse_mode=ParseMode.HTML)
+async def ocr_handle(update: Update, context: CallbackContext):
+    """Handle ocr callback query"""
+    await register_user_if_not_exists(update.callback_query, context, update.callback_query.from_user)
+    user_id = update.callback_query.from_user.id
+    query = update.callback_query
+
+    action_type, img_name, lang = query.data.split("|")
+    file_id = query.message.reply_to_message.photo[-1].file_id
+    img_file = await context.bot.get_file(file_id)
+    await img_file.download_to_drive(custom_path := f'{img_name}')
+    await query.message.chat.send_action(action="typing")
+    text = await azure_ocr(img_name)
+    logger.info(f'ocr text:{text}')
+    if text:
+        text_main_lang = get_main_lang(text)
+        gpt_obj = chatgpt.ChatGPT(use_chatgpt_api=config.use_chatgpt_api)
+        if action_type == 'summary':
+            text = f"{text} Summary the main point of this text in {text_main_lang}."
+        elif action_type == 'story':
+            text = f"{text} Tell me a story according to the text in {text_main_lang}."
+        elif action_type == 'joke':
+            text = f"{text} Tell me a joke according to the text in {text_main_lang}."
+        else:
+            # ocr and translate
+            if lang == 'None':
+                # only ocr text
+                if config.typing_effect:
+                    await send_like_tying(update, context, text)
+                else:
+                    await query.message.reply_text(text, parse_mode=ParseMode.HTML)
+                return
+            else:
+                lang = 'Chinese' if lang == 'zh' else 'English'
+                text = f"{text} Translate to {lang}"
+        answer, _ = gpt_obj.send_message(text, dialog_messages=[],
+                                         chat_mode=db.get_user_attribute(user_id, "current_chat_mode")
+                                         )
+        await query.message.chat.send_action(action="typing")
+        if config.typing_effect:
+            await send_like_tying(update, context, answer)
+        else:
+            await query.message.reply_text(answer, parse_mode=ParseMode.HTML)
+    else:
+        await query.message.reply_text("No text found in the picture", parse_mode=ParseMode.HTML)
 
 
 async def error_handle(update: Update, context: CallbackContext) -> None:

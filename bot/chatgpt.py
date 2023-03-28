@@ -1,5 +1,4 @@
 import openai
-import tiktoken
 
 from . import config
 
@@ -34,7 +33,7 @@ CHAT_MODES = {
 
 class ChatGPT:
     OPENAI_COMPLETION_OPTIONS = {
-        "temperature": 0.7,
+        "temperature": 0.5,
         "max_tokens": 1000,
         "top_p": 1,
         "frequency_penalty": 0,
@@ -66,7 +65,6 @@ class ChatGPT:
                         if "content" in delta:
                             answer += delta.content
                             yield "not_finished", answer
-                    n_used_tokens = self._count_tokens_for_chatgpt(messages, answer, model="gpt-3.5-turbo")
                 else:
                     prompt = self._generate_prompt(message, dialog_messages, chat_mode)
                     r_gen = await openai.Completion.acreate(
@@ -81,8 +79,6 @@ class ChatGPT:
                         answer += r_item.choices[0].text
                         yield "not_finished", answer
 
-                    n_used_tokens = self._count_tokens_for_gpt(prompt, answer, model="text-davinci-003")
-
                 answer = self._postprocess_answer(answer)
 
             except openai.error.InvalidRequestError as e:  # too many tokens
@@ -95,7 +91,7 @@ class ChatGPT:
 
         n_first_dialog_messages_removed = n_dialog_messages_before - len(dialog_messages)
 
-        yield "finished", answer, n_used_tokens, n_first_dialog_messages_removed  # sending final answer
+        yield "finished", answer, n_first_dialog_messages_removed  # sending final answer
 
     def send_message(self, message, dialog_messages=[], chat_mode="assistant"):
         if chat_mode not in CHAT_MODES.keys():
@@ -123,7 +119,6 @@ class ChatGPT:
                     answer = r.choices[0].text
 
                 answer = self._postprocess_answer(answer)
-                n_used_tokens = r.usage.total_tokens
 
             except openai.error.InvalidRequestError as e:  # too many tokens
                 if len(dialog_messages) == 0:
@@ -135,7 +130,7 @@ class ChatGPT:
 
         n_first_dialog_messages_removed = n_dialog_messages_before - len(dialog_messages)
 
-        return answer, n_used_tokens, n_first_dialog_messages_removed
+        return answer, n_first_dialog_messages_removed
 
     @staticmethod
     def _generate_prompt(message, dialog_messages, chat_mode):
@@ -171,18 +166,3 @@ class ChatGPT:
     def _postprocess_answer(self, answer):
         answer = answer.strip()
         return answer
-
-    def _count_tokens_for_chatgpt(self, prompt_messages, answer, model="gpt-3.5-turbo"):
-        prompt_messages += [{"role": "assistant", "content": answer}]
-
-        encoding = tiktoken.encoding_for_model(model)
-        n_tokens = 0
-        for message in prompt_messages:
-            n_tokens += 4  # every message follows "<im_start>{role/name}\n{content}<im_end>\n"
-            for key, value in message.items():
-                if key == "role":
-                    n_tokens += 1
-                elif key == "content":
-                    n_tokens += len(encoding.encode(value))
-                else:
-                    raise ValueError(f"Unknown key in message: {key}")
