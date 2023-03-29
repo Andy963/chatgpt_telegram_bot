@@ -40,10 +40,39 @@ class ChatGPT:
         "presence_penalty": 0
     }
 
-    def __init__(self, use_chatgpt_api=True):
-        self.use_chatgpt_api = use_chatgpt_api
+    support_models = ['gpt-3.5-turbo', ]
+
+    def __init__(self, model_name: str = 'gpt-3.5-turbo', use_stream: bool = True):
+        """
+        use gpt-3.5-turbo by default
+        use stream by default
+        remove davince model
+        """
+        self.model_name = model_name
+        self.use_stream = use_stream
+
+    def gen_options(self, messages, use_stream):
+        """Generate options for openai
+        """
+        if self.model_name not in self.support_models:
+            raise ValueError(f"Model {self.model_name} is not supported")
+        opts = {
+            "model": self.model_name,
+            "messages": messages,
+            "stream": use_stream,
+            **self.OPENAI_COMPLETION_OPTIONS
+        }
+        return opts
 
     async def send_message_stream(self, message, dialog_messages=None, chat_mode='assistant'):
+        """
+        use stream  mode to get answer from openai
+        :param message: [message you want to send to openai ]
+        :param dialog_messages: [message list]
+        :param chat_mode: ['assistant', 'code_assistant', 'text_improver', 'movie_expert']
+        """
+        if dialog_messages is None:
+            dialog_messages = []
         if chat_mode not in CHAT_MODES.keys():
             raise ValueError(f"Chat mode {chat_mode} is not supported")
 
@@ -51,49 +80,31 @@ class ChatGPT:
         answer = None
         while answer is None:
             try:
-                if self.use_chatgpt_api:
-                    messages = self._generate_msg(message, dialog_messages, chat_mode)
-                    r_gen = await openai.ChatCompletion.acreate(
-                        model="gpt-3.5-turbo",
-                        messages=messages,
-                        stream=True,
-                        **self.OPENAI_COMPLETION_OPTIONS
-                    )
-                    answer = ""
-                    async for r_item in r_gen:
-                        delta = r_item.choices[0].delta
-                        if "content" in delta:
-                            answer += delta.content
-                            yield "not_finished", answer
-                else:
-                    prompt = self._generate_prompt(message, dialog_messages, chat_mode)
-                    r_gen = await openai.Completion.acreate(
-                        engine="text-davinci-003",
-                        prompt=prompt,
-                        stream=True,
-                        **self.OPENAI_COMPLETION_OPTIONS
-                    )
-
-                    answer = ""
-                    async for r_item in r_gen:
-                        answer += r_item.choices[0].text
+                messages = self._generate_msg(message, dialog_messages, chat_mode)
+                r_gen = await openai.ChatCompletion.acreate(**self.gen_options(messages, self.use_stream))
+                answer = ""
+                async for r_item in r_gen:
+                    delta = r_item.choices[0].delta
+                    if "content" in delta:
+                        answer += delta.content
                         yield "not_finished", answer
-
                 answer = self._postprocess_answer(answer)
-
             except openai.error.InvalidRequestError as e:  # too many tokens
                 if len(dialog_messages) == 0:
                     raise ValueError(
                         "Dialog messages is reduced to zero, but still has too many tokens to make completion") from e
-
                 # forget first message in dialog_messages
                 dialog_messages = dialog_messages[1:]
-
         n_first_dialog_messages_removed = n_dialog_messages_before - len(dialog_messages)
 
         yield "finished", answer, n_first_dialog_messages_removed  # sending final answer
 
-    def send_message(self, message, dialog_messages=[], chat_mode="assistant"):
+    def send_message(self, message, dialog_messages=None, chat_mode="assistant"):
+        """
+        Send message to ask openai, same as send_message_stream, but not use stream mode
+        """
+        if dialog_messages is None:
+            dialog_messages = []
         if chat_mode not in CHAT_MODES.keys():
             raise ValueError(f"Chat mode {chat_mode} is not supported")
 
@@ -101,61 +112,33 @@ class ChatGPT:
         answer = None
         while answer is None:
             try:
-                if self.use_chatgpt_api:
-                    messages = self._generate_msg(message, dialog_messages, chat_mode)
-                    r = openai.ChatCompletion.create(
-                        model="gpt-3.5-turbo",
-                        messages=messages,
-                        **self.OPENAI_COMPLETION_OPTIONS
-                    )
-                    answer = r.choices[0].message["content"]
-                else:
-                    prompt = self._generate_prompt(message, dialog_messages, chat_mode)
-                    r = openai.Completion.create(
-                        engine="text-davinci-003",
-                        prompt=prompt,
-                        **self.OPENAI_COMPLETION_OPTIONS
-                    )
-                    answer = r.choices[0].text
-
-                answer = self._postprocess_answer(answer)
-
+                messages = self._generate_msg(message, dialog_messages, chat_mode)
+                r = openai.ChatCompletion.create(**self.gen_options(messages, use_stream=False))
+                answer = r.choices[0].message["content"]
             except openai.error.InvalidRequestError as e:  # too many tokens
                 if len(dialog_messages) == 0:
                     raise ValueError(
                         "Dialog messages is reduced to zero, but still has too many tokens to make completion") from e
-
                 # forget first message in dialog_messages
                 dialog_messages = dialog_messages[1:]
-
         n_first_dialog_messages_removed = n_dialog_messages_before - len(dialog_messages)
 
         return answer, n_first_dialog_messages_removed
 
     @staticmethod
-    def _generate_prompt(message, dialog_messages, chat_mode):
-        prompt = CHAT_MODES[chat_mode]["prompt_start"]
-        prompt += "\n\n"
-
-        # add chat context
-        if len(dialog_messages) > 0:
-            prompt += "Chat:\n"
-            for dialog_message in dialog_messages:
-                prompt += f"User: {dialog_message['user']}\n"
-                prompt += f"ChatGPT: {dialog_message['bot']}\n"
-
-        # current message
-        prompt += f"User: {message}\n"
-        prompt += "ChatGPT: "
-
-        return prompt
-
-    @staticmethod
     def _generate_msg(message, dialog_messages, chat_mode):
+        """
+        Generate messages for openai
+        :param message:
+        :param dialog_messages:
+        :param chat_mode:
+        """
         prompt = CHAT_MODES[chat_mode]["prompt_start"]
         messages = []
+        # tell system the role you want it to play
         if not dialog_messages:
             messages.append({"role": "system", "content": prompt})
+        # take the message from the user
         for msg in dialog_messages:
             messages.append({"role": "user", "content": msg["user"]})
             messages.append({"role": "assistant", "content": msg["assistant"]})
@@ -163,6 +146,7 @@ class ChatGPT:
 
         return messages
 
-    def _postprocess_answer(self, answer):
+    @staticmethod
+    def _postprocess_answer(answer):
         answer = answer.strip()
         return answer

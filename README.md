@@ -64,6 +64,8 @@ TODO:
 - [ ] voice story
 - [ ] prompt list
 - [ ] pdf && article analysis
+- [ ] bard , new bing etc.
+- [ ] export history.
 if you are using ubuntu 22.04, you need to install the latest libssl1.1 either as a binary package, or by compiling it
 from sources.
 

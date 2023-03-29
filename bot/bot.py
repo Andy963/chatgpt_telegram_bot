@@ -1,8 +1,12 @@
 import asyncio
 import html
 import json
+import math
+import random
+import string
 import time
 import traceback
+import wave
 from datetime import datetime
 from pathlib import Path
 
@@ -15,8 +19,7 @@ from telegram.ext import CallbackContext
 from . import chatgpt
 from . import config
 from .database import Database
-from .helper import send_like_tying, speech_to_text, reply_voice, check_contain_code, render_msg_with_code, azure_ocr, \
-    get_main_lang
+from .helper import send_like_tying, check_contain_code, render_msg_with_code, get_main_lang, AzureService
 from .log import logger
 
 # setup
@@ -30,6 +33,9 @@ HELP_MESSAGE = """Commands:
 ⚪ /help – Show help
 """
 
+azure_service = AzureService()
+gpt_service = chatgpt.ChatGPT(model_name=config.openai_engine, use_stream=config.openai_response_streaming)
+
 
 async def register_user_if_not_exists(update: Update, context: CallbackContext, user: User):
     if not db.check_if_user_exists(user.id):
@@ -40,6 +46,59 @@ async def register_user_if_not_exists(update: Update, context: CallbackContext, 
             first_name=user.first_name,
             last_name=user.last_name
         )
+
+
+async def reply_voice(update, context, answer):
+    """
+     check if it's only single language if it's then reply with voice
+    """
+    audio_file = azure_service.text2speech(answer)
+    if audio_file and Path(audio_file).exists():
+        try:
+            with wave.open(audio_file, 'rb') as f:
+                # Get the audio file parameters
+                sample_width = f.getsampwidth()
+                frame_rate = f.getframerate()
+                num_frames = f.getnframes()
+
+                # Calculate the audio duration
+                audio_duration = float(num_frames) / float(frame_rate)
+                logger.info(f'audio duration: {audio_duration}')
+
+                # Split the audio into segments of maximum duration (in seconds)
+                max_duration = 59.0  # Telegram maximum audio duration is 1 minute
+                num_segments = int(math.ceil(audio_duration / max_duration))
+                logger.info(f'audio segments num: {num_segments}')
+                for i in range(num_segments):
+                    # Calculate the start and end frames of the segment
+                    start_frame = int(i * max_duration * frame_rate)
+                    end_frame = int(min((i + 1) * max_duration * frame_rate, num_frames))
+
+                    # Read the segment data from the audio file
+                    f.setpos(start_frame)
+                    segment_data = f.readframes(end_frame - start_frame)
+
+                    # Write the segment data to a temporary file
+                    segment_filename = f'segment_{random.sample(string.ascii_letters + string.digits, 6)}.ogg'
+                    with wave.open(segment_filename, 'wb') as segment_file:
+                        segment_file.setparams(f.getparams())
+                        segment_file.writeframes(segment_data)
+
+                    # Send the segment as a Telegram audio message
+                    with open(segment_filename, 'rb') as segment_file:
+                        await context.bot.send_chat_action(chat_id=update.effective_chat.id,
+                                                           action='record_audio')
+                        await context.bot.send_voice(chat_id=update.effective_chat.id, voice=segment_file)
+
+                    # Delete the temporary file
+                    Path(segment_filename).unlink()
+                    logger.info(f'reply multi voice done!')
+        except Exception as e:
+            logger.error(f'error in reply_multi_voice: {e}')
+            logger.error(f"error stack: {traceback.format_exc()}")
+        Path(audio_file).unlink()
+    else:
+        await update.message.reply_text("Text to speech failed")
 
 
 async def start_handle(update: Update, context: CallbackContext):
@@ -102,10 +161,9 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
     try:
         message = message or update.message.text
         message_id = update.message.message_id
-        gpt_obj = chatgpt.ChatGPT(use_chatgpt_api=config.use_chatgpt_api)
-        gen_answer = gpt_obj.send_message_stream(message,
-                                                 dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),
-                                                 chat_mode=db.get_user_attribute(user_id, "current_chat_mode"), )
+        gen_answer = gpt_service.send_message_stream(message,
+                                                     dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),
+                                                     chat_mode=db.get_user_attribute(user_id, "current_chat_mode"), )
 
         prev_answer = ""
         i = -1
@@ -133,7 +191,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
                         sent_message = await update.message.reply_text(answer, reply_to_message_id=message_id, )
             else:  # edit sent message
                 # update only when 100 new symbols are ready
-                if abs(len(answer) - len(prev_answer)) < 100 and status != "finished":
+                if abs(len(answer) - len(prev_answer)) < 50 and status != "finished":
                     continue
                 try:
                     await context.bot.edit_message_text(answer, chat_id=sent_message.chat_id,
@@ -189,15 +247,14 @@ async def voice_message_handle(update: Update, context: CallbackContext):
             audio = AudioSegment.from_file(f'{name}.ogg')
             audio.export(a_file, format="wav")
             await update.message.chat.send_action(action='record_audio')
-            recognized_text = speech_to_text(a_file) or ''
+            recognized_text = azure_service.speech2text(a_file) or ''
             # send the recognised text
             text = 'You said: ' + recognized_text
-            if config.typing_effect:
+            if config.telegram_typing_effect:
                 await send_like_tying(update, context, text)
             else:
                 await update.message.reply_text(text, parse_mode=ParseMode.HTML)
-            gpt_obj = chatgpt.ChatGPT(use_chatgpt_api=config.use_chatgpt_api)
-            answer, _ = gpt_obj.send_message(
+            answer, _ = gpt_service.send_message(
                 recognized_text, dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),
                 chat_mode=db.get_user_attribute(user_id, "current_chat_mode")
             )
@@ -206,7 +263,7 @@ async def voice_message_handle(update: Update, context: CallbackContext):
                 answer = render_msg_with_code(answer)
                 await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
             else:
-                if config.typing_effect:
+                if config.telegram_typing_effect:
                     await send_like_tying(update, context, answer)
                 else:
                     await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
@@ -320,11 +377,10 @@ async def ocr_handle(update: Update, context: CallbackContext):
     img_file = await context.bot.get_file(file_id)
     await img_file.download_to_drive(custom_path := f'{img_name}')
     await query.message.chat.send_action(action="typing")
-    text = await azure_ocr(img_name)
+    text = await azure_service.ocr(img_name)
     logger.info(f'ocr text:{text}')
     if text:
         text_main_lang = get_main_lang(text)
-        gpt_obj = chatgpt.ChatGPT(use_chatgpt_api=config.use_chatgpt_api)
         if action_type == 'summary':
             text = f"{text} Summary the main point of this text in {text_main_lang}."
         elif action_type == 'story':
@@ -335,7 +391,7 @@ async def ocr_handle(update: Update, context: CallbackContext):
             # ocr and translate
             if lang == 'None':
                 # only ocr text
-                if config.typing_effect:
+                if config.telegram_typing_effect:
                     await send_like_tying(update, context, text)
                 else:
                     await query.message.reply_text(text, parse_mode=ParseMode.HTML)
@@ -343,11 +399,11 @@ async def ocr_handle(update: Update, context: CallbackContext):
             else:
                 lang = 'Chinese' if lang == 'zh' else 'English'
                 text = f"{text} Translate to {lang}"
-        answer, _ = gpt_obj.send_message(text, dialog_messages=[],
-                                         chat_mode=db.get_user_attribute(user_id, "current_chat_mode")
-                                         )
+        answer, _ = gpt_service.send_message(text, dialog_messages=[],
+                                             chat_mode=db.get_user_attribute(user_id, "current_chat_mode")
+                                             )
         await query.message.chat.send_action(action="typing")
-        if config.typing_effect:
+        if config.telegram_typing_effect:
             await send_like_tying(update, context, answer)
         else:
             await query.message.reply_text(answer, parse_mode=ParseMode.HTML)

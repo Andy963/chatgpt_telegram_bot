@@ -1,12 +1,16 @@
-telegram_token: "" # get from botfather
-openai_api_key: "" # openai api key
-azure_speech_key: "" # azure speech to text
-azure_text_key: "" # azure text to speech
-azure_ocr_key: "" #azure ocr key
-endpoint: # azure ocr endpoint
-azure_speech_region: "eastasia"
-use_chatgpt_api: true
+telegram_token: ""
+telegram_typing_effect: true
 allowed_telegram_usernames: [ ]  # if empty, the bot is available to anyone
+
+openai_api_key: ""
+openai_engine: "gpt-3.5-turbo" # currently not support davinci anymore
+openai_response_streaming: true
+
+azure_text2speech_key: ""
+azure_speech2text_key: ""
+azure_recognize_key: ""
+azure_recognize_endpoint: ""
+azure_region: ""
+
 new_dialog_timeout: 600  # new dialog starts after timeout (in seconds)
-typing_effect: true
-reply_with_voice: true
+reply_voice_with_voice: true
