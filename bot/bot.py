@@ -18,6 +18,7 @@ from telegram.ext import CallbackContext
 
 from . import chatgpt
 from . import config
+from .bing import Chatbot
 from .database import Database
 from .helper import send_like_tying, check_contain_code, render_msg_with_code, get_main_lang, AzureService
 from .log import logger
@@ -157,7 +158,6 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
     # send typing action
-    await update.message.chat.send_action(action="typing")
     try:
         message = message or update.message.text
         message_id = update.message.message_id
@@ -165,6 +165,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
                                                      dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),
                                                      chat_mode=db.get_user_attribute(user_id, "current_chat_mode"), )
 
+        await update.message.chat.send_action(action="typing")
         prev_answer = ""
         i = -1
         async for gen_item in gen_answer:
@@ -181,32 +182,44 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             answer = answer[:4096]  # telegram message limit
             if i == 0:  # send first message (then it'll be edited if message streaming is enabled)
                 try:
-                    sent_message = await update.message.reply_text(answer, reply_to_message_id=message_id,
+                    sent_message = await update.message.reply_text(f"God \n {answer}", reply_to_message_id=message_id,
                                                                    parse_mode=ParseMode.HTML)
                 except telegram.error.BadRequest as e:
                     if str(e).startswith("Message must be non-empty"):  # first answer chunk from openai was empty
                         i = -1  # try again to send first message
+                        await asyncio.sleep(0.01)
                         continue
                     else:
-                        sent_message = await update.message.reply_text(answer, reply_to_message_id=message_id, )
+                        sent_message = await update.message.reply_text(f"God \n {answer}",
+                                                                       reply_to_message_id=message_id, )
             else:  # edit sent message
+
                 # update only when 100 new symbols are ready
-                if abs(len(answer) - len(prev_answer)) < 50 and status != "finished":
+                if abs(len(answer) - len(prev_answer)) < 80 and status != "finished":
+                    await asyncio.sleep(0.01)
                     continue
                 try:
-                    await context.bot.edit_message_text(answer, chat_id=sent_message.chat_id,
+                    await context.bot.edit_message_text(f"God \n {answer}", chat_id=sent_message.chat_id,
                                                         message_id=sent_message.message_id, parse_mode=ParseMode.HTML)
                 except telegram.error.BadRequest as e:
                     if str(e).startswith("Message is not modified"):
+                        await asyncio.sleep(0.01)
                         continue
                     else:
-                        await context.bot.edit_message_text(answer, chat_id=sent_message.chat_id,
+                        await context.bot.edit_message_text(f"God \n {answer}", chat_id=sent_message.chat_id,
                                                             message_id=sent_message.message_id)
-
-                await asyncio.sleep(0.01)  # wait a bit to avoid flooding
 
             prev_answer = answer
             # update user data
+        else:
+            # give choice to ask bing if answer is not satisfied
+            await update.message.reply_text('Not satisfied, ask <strong>bing(GPT-4)</strong>?',
+                                            reply_to_message_id=sent_message.message_id,
+                                            reply_markup=InlineKeyboardMarkup([
+                                                [InlineKeyboardButton("Yes", callback_data='bing|yes'),
+                                                 InlineKeyboardButton("Ignore", callback_data='bing|ignore')]
+                                            ]), parse_mode=ParseMode.HTML
+                                            )
         new_dialog_message = {"user": message, "assistant": answer,
                               "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
         db.set_dialog_messages(
@@ -349,13 +362,12 @@ async def photo_handle(update: Update, context: CallbackContext):
     try:
         if update.message.photo:
             # give choice to ocr or ocr and translate to chinese or ocr and translate to english
-            choice = []
-            choice.append(InlineKeyboardButton("OCR", callback_data=f"ocr|{name}|None"))
-            choice.append(InlineKeyboardButton("ZH", callback_data=f"ocr|{name}|zh"))
-            choice.append(InlineKeyboardButton("EN", callback_data=f"ocr|{name}|en"))
-            choice.append(InlineKeyboardButton("Summary", callback_data=f"summary|{name}|None"))
-            choice.append(InlineKeyboardButton("Story", callback_data=f"story|{name}|None"))
-            choice.append(InlineKeyboardButton("Joke", callback_data=f"joke|{name}|None"))
+            choice = [InlineKeyboardButton("OCR", callback_data=f"ocr|{name}|None"),
+                      InlineKeyboardButton("ZH", callback_data=f"ocr|{name}|zh"),
+                      InlineKeyboardButton("EN", callback_data=f"ocr|{name}|en"),
+                      InlineKeyboardButton("Summary", callback_data=f"ocr|{name}|summary"),
+                      InlineKeyboardButton("Story", callback_data=f"ocr|{name}|story"),
+                      InlineKeyboardButton("Joke", callback_data=f"ocr|{name}|joke")]
             await update.message.reply_text("What do you want to do with the picture?",
                                             reply_to_message_id=update.message.message_id,
                                             reply_markup=InlineKeyboardMarkup([choice]))
@@ -366,39 +378,97 @@ async def photo_handle(update: Update, context: CallbackContext):
         logger.error(f"photo handle error stack: {traceback.format_exc()}")
 
 
+async def bing_handle(update: Update, context: CallbackContext):
+    """handle bing callback query"""
+    user_id = update.callback_query.from_user.id
+    query = update.callback_query
+    dialog_messages = db.get_dialog_messages(user_id, dialog_id=None)
+    if len(dialog_messages) == 0:
+        await update.message.reply_text("No message to retry 🤷‍♂️")
+        return
+    last_dialog_message = dialog_messages.pop()
+    _, yes_no = query.data.split("|")
+    if yes_no == "yes":
+        bing_service = Chatbot(proxy=config.bing_proxy, cookiePath=config.bing_cookies)
+        prev_ans, i = '', -1
+        prompt = last_dialog_message['user']
+        if config.bing_no_links:
+            prompt += " Please don't give me links, give me simple answer."
+        await query.message.chat.send_action(action="typing")
+        async for final, resp in bing_service.ask_stream(prompt=prompt):
+
+            if final:
+                break
+            else:
+                i += 1
+                ans = resp[:4096]
+                if i == 0:  # first string
+                    try:
+                        sent_message = await query.message.reply_text(f"Bing:\n {ans}...",
+                                                                      disable_web_page_preview=True,
+                                                                      parse_mode=ParseMode.HTML)
+                    except Exception as e:
+                        if str(e).startswith("Message must be non-empty"):
+                            i -= 1
+                            await asyncio.sleep(0.01)
+                            continue
+                        else:
+                            sent_message = await query.message.reply_text(f"Bing:\n {ans}...",
+                                                                          disable_web_page_preview=True,
+                                                                          parse_mode=ParseMode.HTML)
+                else:
+                    if abs(len(ans) - len(prev_ans)) < 80 and not final:
+                        await asyncio.sleep(0.01)
+                        continue
+                    try:
+                        await context.bot.edit_message_text(f"Bing:\n {ans}", chat_id=sent_message.chat_id,
+                                                            message_id=sent_message.message_id,
+                                                            disable_web_page_preview=True,
+                                                            parse_mode=ParseMode.HTML)
+                    except Exception as e:
+                        if str(e).startswith("Message is not modified"):
+                            await asyncio.sleep(0.01)
+                            continue
+                        else:
+                            await context.bot.edit_message_text(f"Bing: \n {ans}", chat_id=sent_message.chat_id,
+                                                                message_id=sent_message.message_id,
+                                                                disable_web_page_preview=True,
+                                                                parse_mode=ParseMode.HTML)
+
+            prev_ans = ans
+        await bing_service.close()
+
+
 async def ocr_handle(update: Update, context: CallbackContext):
     """Handle ocr callback query"""
-    await register_user_if_not_exists(update.callback_query, context, update.callback_query.from_user)
     user_id = update.callback_query.from_user.id
     query = update.callback_query
 
-    action_type, img_name, lang = query.data.split("|")
+    _, img_name, action_type = query.data.split("|")
     file_id = query.message.reply_to_message.photo[-1].file_id
     img_file = await context.bot.get_file(file_id)
-    await img_file.download_to_drive(custom_path := f'{img_name}')
+    await img_file.download_to_drive(img_name)
     await query.message.chat.send_action(action="typing")
     text = await azure_service.ocr(img_name)
     logger.info(f'ocr text:{text}')
     if text:
         text_main_lang = get_main_lang(text)
-        if action_type == 'summary':
+        if action_type == 'None':  # only ocr
+            if config.telegram_typing_effect:
+                await send_like_tying(update, context, text)
+            else:
+                await query.message.reply_text(text, parse_mode=ParseMode.HTML)
+            return
+        elif action_type == 'zh' or action_type == 'en':  # need translate
+            lang = 'Chinese' if action_type == 'zh' else 'English'
+            text = f"{text} Translate to {lang}"
+        elif action_type == 'summary':
             text = f"{text} Summary the main point of this text in {text_main_lang}."
         elif action_type == 'story':
             text = f"{text} Tell me a story according to the text in {text_main_lang}."
         elif action_type == 'joke':
             text = f"{text} Tell me a joke according to the text in {text_main_lang}."
-        else:
-            # ocr and translate
-            if lang == 'None':
-                # only ocr text
-                if config.telegram_typing_effect:
-                    await send_like_tying(update, context, text)
-                else:
-                    await query.message.reply_text(text, parse_mode=ParseMode.HTML)
-                return
-            else:
-                lang = 'Chinese' if lang == 'zh' else 'English'
-                text = f"{text} Translate to {lang}"
+
         answer, _ = gpt_service.send_message(text, dialog_messages=[],
                                              chat_mode=db.get_user_attribute(user_id, "current_chat_mode")
                                              )
@@ -409,6 +479,15 @@ async def ocr_handle(update: Update, context: CallbackContext):
             await query.message.reply_text(answer, parse_mode=ParseMode.HTML)
     else:
         await query.message.reply_text("No text found in the picture", parse_mode=ParseMode.HTML)
+
+
+async def dispatch_callback_handle(update: Update, context: CallbackContext):
+    await register_user_if_not_exists(update.callback_query, context, update.callback_query.from_user)
+    query = update.callback_query
+    if query.data.startswith("bing"):
+        await bing_handle(update, context)
+    elif query.data.startswith("ocr"):
+        await ocr_handle(update, context)
 
 
 async def error_handle(update: Update, context: CallbackContext) -> None:

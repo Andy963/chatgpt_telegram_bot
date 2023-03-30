@@ -14,3 +14,7 @@ azure_region: ""
 
 new_dialog_timeout: 600  # new dialog starts after timeout (in seconds)
 reply_voice_with_voice: true
+
+bing_cookies_path: "/etc/gpt/cookies.json"
+bing_proxy: "socks5://127.0.0.1:1080"
+bing_no_links: true

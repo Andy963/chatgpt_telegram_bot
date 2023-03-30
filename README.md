@@ -15,7 +15,7 @@ This repo is ChatGPT re-created with GPT-3.5 LLM as Telegram Bot. **And it works
 
 You can deploy your own bot, or use mine: [@chatgpt_karfly_bot](https://t.me/chatgpt_karfly_bot)
 
-if you want to use 'text-davinci-003' set the `use_chatgpt_api: false` in config.yml
+~~if you want to use 'text-davinci-003' set the `use_chatgpt_api: false` in config.yml~~
 
 ## Features
 
@@ -28,13 +28,13 @@ if you want to use 'text-davinci-003' set the `use_chatgpt_api: false` in config
 - reply with voice message (use azure text to speech)
 - multi language voice message support (azure TTS)
 - picture ocr and translate, summary, tell story joke etc.
+- if you are not satisfied with gpt-3.5 answer, you can use ask new bing.
 
 ## Bot commands
 
 - `/retry` – Regenerate last bot answer
 - `/new` – Start new dialog
 - `/mode` – Select chat mode
-- `/balance` – Show balance
 - `/help` – Show help
 
 ## Setup
@@ -43,8 +43,11 @@ if you want to use 'text-davinci-003' set the `use_chatgpt_api: false` in config
 
 2. Get your Telegram bot token from [@BotFather](https://t.me/BotFather)
 
+3. Get your azure free trial account and get your azure key(text,speech,computer vision)
 
-3. Docker
+4. Get your bing chat cookies
+
+5. Docker
 
 for docker user:
 
@@ -61,16 +64,18 @@ TODO:
 - [x] typing effect
 - [x] reply with multiple language voice (contains En & Zh, need azure)
 - [x] picture ocr and translate, summary, tell story joke etc.
+- [x] bing chat (gpt4) ( cookies required)
 - [ ] voice story
 - [ ] prompt list
 - [ ] pdf && article analysis
-- [ ] bard , new bing etc.
+- [ ] bard .
 - [ ] export history.
-if you are using ubuntu 22.04, you need to install the latest libssl1.1 either as a binary package, or by compiling it
-from sources.
+  if you are using ubuntu 22.04, you need to install the latest libssl1.1 either as a binary package, or by compiling it
+  from sources.
 
 ```shell
 
 ## References
 1. [*Build ChatGPT from GPT-3*](https://learnprompting.org/docs/applied_prompting/build_chatgpt)
 2. [install libssl1.1](https://learn.microsoft.com/en-us/azure/cognitive-services/speech-service/quickstarts/setup-platform?pivots=programming-language-python&tabs=linux%2Cubuntu%2Cdotnet%2Cjre%2Cmaven%2Cnodejs%2Cmac%2Cpypi)
+3. [bing chat](https://github.com/acheong08/EdgeGPT)

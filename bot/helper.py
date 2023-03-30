@@ -58,7 +58,7 @@ async def send_like_tying(update, context, text):
     :param context: bot context
     :param text:  msg text to send
     """
-    msg = await context.bot.send_message(chat_id=update.effective_chat.id, text='God:  ', parse_mode=ParseMode.HTML)
+    msg = await context.bot.send_message(chat_id=update.effective_chat.id, text='God: \n  ', parse_mode=ParseMode.HTML)
     code_index = [(m.start(), m.end()) for m in re.finditer(r'<pre><code>(.+?)</code></pre>', text, re.S)]
     i = 0
     length = len(text)

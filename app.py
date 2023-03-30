@@ -11,7 +11,7 @@ from telegram.ext import (
 
 from bot import config
 from bot.bot import start_handle, help_handle, message_handle, retry_handle, new_dialog_handle, show_chat_modes_handle, \
-    set_chat_mode_handle, error_handle, voice_message_handle, photo_handle, ocr_handle
+    set_chat_mode_handle, error_handle, voice_message_handle, photo_handle, dispatch_callback_handle
 
 
 def run_bot() -> None:
@@ -38,7 +38,7 @@ def run_bot() -> None:
         MessageHandler(filters.TEXT & ~filters.COMMAND & user_filter, message_handle))
     application.add_handler(MessageHandler(filters.VOICE & user_filter, voice_message_handle))
     application.add_handler(MessageHandler(filters.PHOTO & user_filter, photo_handle))
-    application.add_handler(CallbackQueryHandler(ocr_handle, ))
+    application.add_handler(CallbackQueryHandler(dispatch_callback_handle, ))
     application.add_error_handler(error_handle)
 
     # start the bot
@@ -47,5 +47,6 @@ def run_bot() -> None:
 
 if __name__ == "__main__":
     from bot.log import logger
+
     logger.info('Starting bot...')
     run_bot()
