@@ -18,7 +18,7 @@ from telegram.ext import CallbackContext
 
 from . import chatgpt
 from . import config
-from .bing import Chatbot
+from .bing import BingSearch
 from .database import Database
 from .helper import send_like_tying, check_contain_code, render_msg_with_code, get_main_lang, AzureService
 from .log import logger
@@ -36,6 +36,7 @@ HELP_MESSAGE = """Commands:
 
 azure_service = AzureService()
 gpt_service = chatgpt.ChatGPT(model_name=config.openai_engine, use_stream=config.openai_response_streaming)
+bing_service = BingSearch()
 
 
 async def register_user_if_not_exists(update: Update, context: CallbackContext, user: User):
@@ -182,7 +183,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             answer = answer[:4096]  # telegram message limit
             if i == 0:  # send first message (then it'll be edited if message streaming is enabled)
                 try:
-                    sent_message = await update.message.reply_text(f"God \n {answer}", reply_to_message_id=message_id,
+                    sent_message = await update.message.reply_text(f"God: \n {answer}", reply_to_message_id=message_id,
                                                                    parse_mode=ParseMode.HTML)
                 except telegram.error.BadRequest as e:
                     if str(e).startswith("Message must be non-empty"):  # first answer chunk from openai was empty
@@ -190,7 +191,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
                         await asyncio.sleep(0.01)
                         continue
                     else:
-                        sent_message = await update.message.reply_text(f"God \n {answer}",
+                        sent_message = await update.message.reply_text(f"God: \n {answer}",
                                                                        reply_to_message_id=message_id, )
             else:  # edit sent message
 
@@ -199,21 +200,21 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
                     await asyncio.sleep(0.01)
                     continue
                 try:
-                    await context.bot.edit_message_text(f"God \n {answer}", chat_id=sent_message.chat_id,
+                    await context.bot.edit_message_text(f"God: \n {answer}", chat_id=sent_message.chat_id,
                                                         message_id=sent_message.message_id, parse_mode=ParseMode.HTML)
                 except telegram.error.BadRequest as e:
                     if str(e).startswith("Message is not modified"):
                         await asyncio.sleep(0.01)
                         continue
                     else:
-                        await context.bot.edit_message_text(f"God \n {answer}", chat_id=sent_message.chat_id,
+                        await context.bot.edit_message_text(f"God: \n {answer}", chat_id=sent_message.chat_id,
                                                             message_id=sent_message.message_id)
 
             prev_answer = answer
             # update user data
         else:
             # give choice to ask bing if answer is not satisfied
-            await update.message.reply_text('Not satisfied, ask <strong>bing(GPT-4)</strong>?',
+            await update.message.reply_text('Not satisfied, <strong>Bing</strong> ?',
                                             reply_to_message_id=sent_message.message_id,
                                             reply_markup=InlineKeyboardMarkup([
                                                 [InlineKeyboardButton("Yes", callback_data='bing|yes'),
@@ -389,54 +390,17 @@ async def bing_handle(update: Update, context: CallbackContext):
     last_dialog_message = dialog_messages.pop()
     _, yes_no = query.data.split("|")
     if yes_no == "yes":
-        bing_service = Chatbot(proxy=config.bing_proxy, cookiePath=config.bing_cookies)
-        prev_ans, i = '', -1
-        prompt = last_dialog_message['user']
-        if config.bing_no_links:
-            prompt += " Please don't give me links, give me simple answer."
-        await query.message.chat.send_action(action="typing")
-        async for final, resp in bing_service.ask_stream(prompt=prompt):
-
-            if final:
-                break
-            else:
-                i += 1
-                ans = resp[:4096]
-                if i == 0:  # first string
-                    try:
-                        sent_message = await query.message.reply_text(f"Bing:\n {ans}...",
-                                                                      disable_web_page_preview=True,
-                                                                      parse_mode=ParseMode.HTML)
-                    except Exception as e:
-                        if str(e).startswith("Message must be non-empty"):
-                            i -= 1
-                            await asyncio.sleep(0.01)
-                            continue
-                        else:
-                            sent_message = await query.message.reply_text(f"Bing:\n {ans}...",
-                                                                          disable_web_page_preview=True,
-                                                                          parse_mode=ParseMode.HTML)
-                else:
-                    if abs(len(ans) - len(prev_ans)) < 80 and not final:
-                        await asyncio.sleep(0.01)
-                        continue
-                    try:
-                        await context.bot.edit_message_text(f"Bing:\n {ans}", chat_id=sent_message.chat_id,
-                                                            message_id=sent_message.message_id,
-                                                            disable_web_page_preview=True,
-                                                            parse_mode=ParseMode.HTML)
-                    except Exception as e:
-                        if str(e).startswith("Message is not modified"):
-                            await asyncio.sleep(0.01)
-                            continue
-                        else:
-                            await context.bot.edit_message_text(f"Bing: \n {ans}", chat_id=sent_message.chat_id,
-                                                                message_id=sent_message.message_id,
-                                                                disable_web_page_preview=True,
-                                                                parse_mode=ParseMode.HTML)
-
-            prev_ans = ans
-        await bing_service.close()
+        rsp = bing_service.search_web(last_dialog_message['user'])
+        if rsp and len(rsp) > 0:
+            await query.message.chat.send_action(action="typing")
+            text = "Here are some results from <strong>bing</strong>:\n"
+            for i, item in enumerate(rsp, 1):
+                url, name = item['url'], item['name']
+                text += f"<a href='{url}'>{i}.{name}</a>\n"
+            await context.bot.send_message(chat_id=query.message.chat_id, text=text, parse_mode=ParseMode.HTML,
+                                           disable_web_page_preview=True)
+        else:
+            await query.message.reply_text("No results from bing 😔")
 
 
 async def ocr_handle(update: Update, context: CallbackContext):

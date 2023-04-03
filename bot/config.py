@@ -21,11 +21,10 @@ azure_text2speech_key = config_yaml.get("azure_text2speech_key", None)
 azure_speech2text_key = config_yaml.get("azure_speech2text_key", None)
 azure_recognize_key = config_yaml.get("azure_recognize_key", None)
 azure_recognize_endpoint = config_yaml.get("azure_recognize_endpoint")
+azure_bing_key = config_yaml.get("azure_bing_key", None)
+azure_bing_endpoint = config_yaml.get("azure_bing_endpoint")
 azure_region = config_yaml.get("azure_region", 'eastasia')
 
 new_dialog_timeout = config_yaml.get("new_dialog_timeout", 600)
 
-bing_cookies = config_yaml.get("bing_cookies_path", '/etc/gpt/cookies.json')
-bing_proxy = config_yaml.get("bing_proxy", None)
-bing_no_links = config_yaml.get("bing_no_links", True)
 log = '/etc/gpt/chatgpt.log'
