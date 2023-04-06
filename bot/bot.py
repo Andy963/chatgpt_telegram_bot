@@ -125,6 +125,21 @@ async def help_handle(update: Update, context: CallbackContext):
     await update.message.reply_text(HELP_MESSAGE, parse_mode=ParseMode.HTML)
 
 
+async def balance_handle(update: Update, context: CallbackContext):
+    await register_user_if_not_exists(update, context, update.message.from_user)
+    user_id = update.message.from_user.id
+    db.set_user_attribute(user_id, "last_interaction", datetime.now())
+    if not config.openai_session_key:
+        await update.message.reply_text("You have not set session key, can't check balance 🤷‍♂️")
+        return
+    total_granted, total_used, total_available = await gpt_service.get_balance(config.openai_session_key)
+    if total_available is not None:
+        await update.message.reply_text(
+            f'You have {total_granted} credits, used: {total_used}, available: {total_available}')
+
+    await update.message.reply_text(f'sth wrong with check balance, please check your session key 🤷‍♂️')
+
+
 async def retry_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
@@ -160,6 +175,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
 
     # send typing action
     try:
+        tip_message = await update.message.reply_text("I'm working on it, please wait...", )
         message = message or update.message.text
         message_id = update.message.message_id
         gen_answer = gpt_service.send_message_stream(message,
@@ -182,6 +198,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
 
             answer = answer[:4096]  # telegram message limit
             if i == 0:  # send first message (then it'll be edited if message streaming is enabled)
+                await tip_message.delete()
                 try:
                     sent_message = await update.message.reply_text(f"God: \n {answer}", reply_to_message_id=message_id,
                                                                    parse_mode=ParseMode.HTML)
@@ -196,7 +213,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             else:  # edit sent message
 
                 # update only when 100 new symbols are ready
-                if abs(len(answer) - len(prev_answer)) < 80 and status != "finished":
+                if abs(len(answer) - len(prev_answer)) < 100 and status != "finished":
                     await asyncio.sleep(0.01)
                     continue
                 try:
@@ -214,7 +231,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             # update user data
         else:
             # give choice to ask bing if answer is not satisfied
-            await update.message.reply_text('Not satisfied, <strong>Bing</strong> ?',
+            await update.message.reply_text('Not satisfied, Ask <strong>Bing</strong> ?',
                                             reply_to_message_id=sent_message.message_id,
                                             reply_markup=InlineKeyboardMarkup([
                                                 [InlineKeyboardButton("Yes", callback_data='bing|yes'),
@@ -390,11 +407,16 @@ async def bing_handle(update: Update, context: CallbackContext):
     last_dialog_message = dialog_messages.pop()
     _, yes_no = query.data.split("|")
     if yes_no == "yes":
+        tip_message = await context.bot.send_message(
+            text="I'm searching on <strong>bing</strong> for you, please wait...", chat_id=query.message.chat_id,
+            parse_mode=ParseMode.HTML)
         rsp = bing_service.search_web(last_dialog_message['user'])
         if rsp and len(rsp) > 0:
             await query.message.chat.send_action(action="typing")
             text = "Here are some results from <strong>bing</strong>:\n"
             for i, item in enumerate(rsp, 1):
+                if i == 1:
+                    await tip_message.delete()
                 url, name = item['url'], item['name']
                 text += f"<a href='{url}'>{i}.{name}</a>\n"
             await context.bot.send_message(chat_id=query.message.chat_id, text=text, parse_mode=ParseMode.HTML,
@@ -407,15 +429,17 @@ async def ocr_handle(update: Update, context: CallbackContext):
     """Handle ocr callback query"""
     user_id = update.callback_query.from_user.id
     query = update.callback_query
-
+    tip_message = await context.bot.send_message(
+        text="I'm working on it, please wait...", chat_id=query.message.chat_id,
+        parse_mode=ParseMode.HTML)
     _, img_name, action_type = query.data.split("|")
     file_id = query.message.reply_to_message.photo[-1].file_id
     img_file = await context.bot.get_file(file_id)
     await img_file.download_to_drive(img_name)
-    await query.message.chat.send_action(action="typing")
     text = await azure_service.ocr(img_name)
     logger.info(f'ocr text:{text}')
     if text:
+        await query.message.chat.send_action(action="typing")
         text_main_lang = get_main_lang(text)
         if action_type == 'None':  # only ocr
             if config.telegram_typing_effect:
@@ -436,7 +460,7 @@ async def ocr_handle(update: Update, context: CallbackContext):
         answer, _ = gpt_service.send_message(text, dialog_messages=[],
                                              chat_mode=db.get_user_attribute(user_id, "current_chat_mode")
                                              )
-        await query.message.chat.send_action(action="typing")
+        await tip_message.delete()
         if config.telegram_typing_effect:
             await send_like_tying(update, context, answer)
         else:

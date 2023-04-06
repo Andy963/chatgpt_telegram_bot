@@ -1,4 +1,5 @@
 import openai
+import requests
 
 from . import config
 
@@ -150,3 +151,24 @@ class ChatGPT:
     def _postprocess_answer(answer):
         answer = answer.strip()
         return answer
+
+    @staticmethod
+    async def get_balance(session_key: str):
+        """get your balance from openai
+        :param session_key: your session key from openai: https://api.openai.com/dashboard/billing/credit_grants
+        Note this method maybe deprecated in the future
+        """
+        url = "https://api.openai.com/dashboard/billing/credit_grants"
+        headers = {
+            "Content-Type": "application/json",
+            f"Authorization": session_key
+        }
+
+        try:
+            response = requests.get(url, headers=headers)
+            data = response.json()
+            total_granted, total_used, total_available = data.get("total_granted"), data.get("total_used"), data.get(
+                "total_available")
+            return total_granted, total_used, total_available
+        except Exception as e:
+            return None, None, None

@@ -36,6 +36,7 @@ You can deploy your own bot, or use mine: [@chatgpt_karfly_bot](https://t.me/cha
 - `/new` – Start new dialog
 - `/mode` – Select chat mode
 - `/help` – Show help
+- `/balance` – Check your OpenAI balance (need session key)
 
 ## Setup
 
@@ -65,6 +66,7 @@ TODO:
 - [x] reply with multiple language voice (contains En & Zh, need azure)
 - [x] picture ocr and translate, summary, tell story joke etc.
 - [x] bing chat (gpt4) ( cookies required)
+- [x] balance check from openai 
 - [ ] voice story
 - [ ] prompt list
 - [ ] pdf && article analysis

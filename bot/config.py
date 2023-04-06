@@ -16,6 +16,7 @@ allowed_telegram_usernames = config_yaml.get("allowed_telegram_usernames", [])
 openai_api_key = config_yaml.get("openai_api_key")
 openai_engine = config_yaml.get("openai_engine", "gpt-3.5-turbo")
 openai_response_streaming = config_yaml.get("openai_response_streaming", True)
+openai_session_key = config_yaml.get("openai_session_key", None)
 
 azure_text2speech_key = config_yaml.get("azure_text2speech_key", None)
 azure_speech2text_key = config_yaml.get("azure_speech2text_key", None)

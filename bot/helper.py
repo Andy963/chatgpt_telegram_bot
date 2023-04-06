@@ -141,7 +141,7 @@ class AzureService:
         return rs
 
     @staticmethod
-    def create_xml(text_data: list):
+    def create_xml(text_data: list, rate: float = 1.0):
         """create SSML xml string """
         xml_list = ['<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">', ]
         length = len(text_data)
@@ -149,14 +149,14 @@ class AzureService:
             cur_lang = data['lang']
             if cur_lang in ['zh', 'en']:
                 lang_name = "zh-CN-XiaoxiaoNeural" if data['lang'] == 'zh' else 'en-US-JennyNeural'
-                cur = f'<voice name="{lang_name}">{data["text"]}'
+                cur = f'<voice name="{lang_name}" rate={rate}>{data["text"]}'
                 next_ = index + 1
                 if next_ < length:
                     next_lang = text_data[next_]['lang']
                     if next_lang == 'punctuation':
                         if text_data[next_]['text'] in [',', '，']:
                             cur += f'<break strength="weak"/>'
-                        elif text_data[next_]['text'] in ['.', '。', '——']:
+                        elif text_data[next_]['text'] in ['.', '。', '——'] and not re.search(r'\d\.?\d*', data['text']):
                             cur += f'<break strength="medium"/>'
                         elif text_data[next_]['text'] in [':', '：']:
                             cur += f'<break strength="weak"/>'
