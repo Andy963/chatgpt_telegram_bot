@@ -136,6 +136,7 @@ async def balance_handle(update: Update, context: CallbackContext):
     if total_available is not None:
         await update.message.reply_text(
             f'You have {total_granted} credits, used: {total_used}, available: {total_available}')
+        return
 
     await update.message.reply_text(f'sth wrong with check balance, please check your session key 🤷‍♂️')
 
