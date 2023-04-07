@@ -3,6 +3,7 @@ import html
 import json
 import math
 import random
+import re
 import string
 import time
 import traceback
@@ -10,7 +11,9 @@ import wave
 from datetime import datetime
 from pathlib import Path
 
+import requests
 import telegram
+from bs4 import BeautifulSoup
 from pydub import AudioSegment
 from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
@@ -27,6 +30,7 @@ from .log import logger
 
 db = Database()
 
+url_pattern = r'^http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
 HELP_MESSAGE = """Commands:
 ⚪ /retry – Regenerate last bot answer
 ⚪ /new – Start new dialog
@@ -171,13 +175,23 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
     if use_new_dialog_timeout:
         if (datetime.now() - db.get_user_attribute(user_id, "last_interaction")).seconds > config.new_dialog_timeout:
             db.start_new_dialog(user_id)
-            await update.message.reply_text("Starting new dialog due to timeout ✅")
+            await update.message.reply_text("Starting new dialog due to timeout ⌛️")
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
+    message = message or update.message.text
 
+    # solve the url message
+    if re.match(url_pattern, message):
+        await update.message.reply_text("This is a url, I will try to get the text from it, what do you want to do?",
+                                        reply_to_message_id=update.message.message_id,
+                                        reply_markup=InlineKeyboardMarkup([
+                                            [InlineKeyboardButton("summary", callback_data='url|summary'),
+                                             InlineKeyboardButton("main point", callback_data='url|point')]
+                                        ]), parse_mode=ParseMode.HTML
+                                        )
+        return
     # send typing action
     try:
         tip_message = await update.message.reply_text("I'm working on it, please wait...", )
-        message = message or update.message.text
         message_id = update.message.message_id
         gen_answer = gpt_service.send_message_stream(message,
                                                      dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),
@@ -201,7 +215,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             if i == 0:  # send first message (then it'll be edited if message streaming is enabled)
                 await tip_message.delete()
                 try:
-                    sent_message = await update.message.reply_text(f"God: \n {answer}", reply_to_message_id=message_id,
+                    sent_message = await update.message.reply_text(f"🗣\n\n<pre>{answer}</pre>", reply_to_message_id=message_id,
                                                                    parse_mode=ParseMode.HTML)
                 except telegram.error.BadRequest as e:
                     if str(e).startswith("Message must be non-empty"):  # first answer chunk from openai was empty
@@ -209,7 +223,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
                         await asyncio.sleep(0.01)
                         continue
                     else:
-                        sent_message = await update.message.reply_text(f"God: \n {answer}",
+                        sent_message = await update.message.reply_text(f"🗣\n\n<pre>{answer}</pre>",
                                                                        reply_to_message_id=message_id, )
             else:  # edit sent message
 
@@ -218,14 +232,14 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
                     await asyncio.sleep(0.01)
                     continue
                 try:
-                    await context.bot.edit_message_text(f"God: \n {answer}", chat_id=sent_message.chat_id,
+                    await context.bot.edit_message_text(f"🗣\n\n{answer}", chat_id=sent_message.chat_id,
                                                         message_id=sent_message.message_id, parse_mode=ParseMode.HTML)
                 except telegram.error.BadRequest as e:
                     if str(e).startswith("Message is not modified"):
                         await asyncio.sleep(0.01)
                         continue
                     else:
-                        await context.bot.edit_message_text(f"God: \n {answer}", chat_id=sent_message.chat_id,
+                        await context.bot.edit_message_text(f"🗣\n\n<pre>{answer}</pre>", chat_id=sent_message.chat_id,
                                                             message_id=sent_message.message_id)
 
             prev_answer = answer
@@ -260,6 +274,52 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         else:
             text = f"✍️ <i>Note:</i> Your current dialog is too long, so <b>{n_first_dialog_messages_removed} first messages</b> were removed from the context.\n Send /new command to start new dialog"
         await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+
+
+async def url_link_handle(update: Update, context: CallbackContext):
+    """
+    handle the url message
+    """
+    try:
+        user_id = update.callback_query.from_user.id
+        query = update.callback_query
+        action = query.data.split('|')[1]
+        prompt = ''
+        if action == 'summary':
+            prompt = 'summary this text'
+        elif action == 'point':
+            prompt = 'list the main point of this text'
+
+        url = query.message.reply_to_message.text
+        if not url:
+            await context.bot.send_message(text=f"can't get text from this url", chat_id=query.message.chat_id)
+        response = requests.get(url)
+        response.encoding = 'utf-8'
+        soup = BeautifulSoup(response.text, 'html.parser')
+        text = soup.get_text()
+        if len(text) > 500:
+            await context.bot.send_message(
+                text='This message is more than 500 words, Keep an eye on your token balance.',
+                chat_id=query.message.chat_id, parse_mode=ParseMode.HTML)
+        tip_message = await context.bot.send_message(text="I'm working on it, please wait...",
+                                                     chat_id=query.message.chat_id,
+                                                     parse_mode=ParseMode.HTML)
+        answer, n_removed = await gpt_service.send_message(text + prompt)
+        if answer:
+            await tip_message.delete()
+            await context.bot.send_message(text=answer, chat_id=query.message.chat_id, parse_mode=ParseMode.HTML)
+            new_dialog_message = {"user": text, "assistant": answer,
+                                  "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
+            db.set_dialog_messages(
+                user_id,
+                db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message],
+                dialog_id=None
+            )
+    except Exception as e:
+        logger.error(f'sth wrong with :{e}')
+        logger.error(f"traceback {traceback.format_exc()}")
+        await context.bot.send_message(text='sth wrong while solving the html', chat_id=query.message.chat_id,
+                                       parse_mode=ParseMode.HTML)
 
 
 async def voice_message_handle(update: Update, context: CallbackContext):
@@ -447,6 +507,7 @@ async def ocr_handle(update: Update, context: CallbackContext):
                 await send_like_tying(update, context, text)
             else:
                 await query.message.reply_text(text, parse_mode=ParseMode.HTML)
+            await tip_message.delete()
             return
         elif action_type == 'zh' or action_type == 'en':  # need translate
             lang = 'Chinese' if action_type == 'zh' else 'English'
@@ -477,6 +538,8 @@ async def dispatch_callback_handle(update: Update, context: CallbackContext):
         await bing_handle(update, context)
     elif query.data.startswith("ocr"):
         await ocr_handle(update, context)
+    elif query.data.startswith('url'):
+        await url_link_handle(update, context)
 
 
 async def error_handle(update: Update, context: CallbackContext) -> None:

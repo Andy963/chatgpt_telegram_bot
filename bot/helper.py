@@ -58,16 +58,16 @@ async def send_like_tying(update, context, text):
     :param context: bot context
     :param text:  msg text to send
     """
-    msg = await context.bot.send_message(chat_id=update.effective_chat.id, text='God: \n  ', parse_mode=ParseMode.HTML)
+    msg = await context.bot.send_message(chat_id=update.effective_chat.id, text='🗣', parse_mode=ParseMode.HTML)
     code_index = [(m.start(), m.end()) for m in re.finditer(r'<pre><code>(.+?)</code></pre>', text, re.S)]
     i = 0
     length = len(text)
     while i < length:
-        num_chars = random.randint(2, 20) if length < 50 else random.randint(2, 50)
+        num_chars = random.randint(2, 20) if length < 50 else random.randint(10, 50)
 
         if not code_index:
             current_text = text[:i + num_chars]
-            full_text = msg.text + current_text
+            full_text = msg.text + f'\n\t{current_text}\n'
             await context.bot.edit_message_text(chat_id=msg.chat_id, message_id=msg.message_id, text=full_text,
                                                 parse_mode=ParseMode.HTML)
             i += num_chars
@@ -75,14 +75,14 @@ async def send_like_tying(update, context, text):
             start, end = code_index[0]
             # expand to end of code block
             if i + num_chars > start:
-                full_text = msg.text + text[:end + 1]
+                full_text = msg.text + f'\n\t{current_text}\n'
                 await context.bot.edit_message_text(chat_id=msg.chat_id, message_id=msg.message_id, text=full_text,
                                                     parse_mode=ParseMode.HTML)
                 i = end + 1
                 code_index.pop(0)
             else:
                 current_text = text[:i + num_chars]
-                full_text = msg.text + current_text
+                full_text = msg.text + f'\n\t{current_text}\n'
                 await context.bot.edit_message_text(chat_id=msg.chat_id, message_id=msg.message_id, text=full_text,
                                                     parse_mode=ParseMode.HTML)
                 i += num_chars
@@ -149,7 +149,7 @@ class AzureService:
             cur_lang = data['lang']
             if cur_lang in ['zh', 'en']:
                 lang_name = "zh-CN-XiaoxiaoNeural" if data['lang'] == 'zh' else 'en-US-JennyNeural'
-                cur = f'<voice name="{lang_name}" rate={rate}>{data["text"]}'
+                cur = f'<voice name="{lang_name}" rate="{rate}">{data["text"]}'
                 next_ = index + 1
                 if next_ < length:
                     next_lang = text_data[next_]['lang']
@@ -224,8 +224,8 @@ class AzureService:
                 auto_detect_source_language_result = speechsdk.AutoDetectSourceLanguageResult(result)
                 detected_language = auto_detect_source_language_result.language
                 logger.info(f'detected language:{detected_language}')
+                logger.info(f'result: {result}')
                 if detected_language in langs:
-                    logger.info(f'result: {result}')
                     if result.reason == speechsdk.ResultReason.RecognizedSpeech:
                         logger.info("Azure Recognized: {}".format(result.text))
                         return result.text
