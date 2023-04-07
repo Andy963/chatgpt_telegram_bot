@@ -36,7 +36,8 @@ You can deploy your own bot, or use mine: [@chatgpt_karfly_bot](https://t.me/cha
 - `/new` – Start new dialog
 - `/mode` – Select chat mode
 - `/help` – Show help
-- `/balance` – Check your OpenAI balance (need session key)
+- `/balance` – Check your OpenAI balance (session key required)
+- `/lp` – List prompts (np, lp, dp: add new prompt, list prompt, del prompt with id)
 
 ## Setup
 
@@ -68,7 +69,7 @@ TODO:
 - [x] bing chat (gpt4) ( cookies required)
 - [x] balance check from openai 
 - [ ] voice story
-- [ ] prompt list
+- [x] prompt list
 - [ ] pdf && article analysis
 - [ ] bard .
 - [ ] export history.

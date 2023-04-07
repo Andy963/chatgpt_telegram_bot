@@ -3,7 +3,7 @@
 import os
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, create_engine, DateTime, JSON
+from sqlalchemy import Column, Integer, String, create_engine, DateTime, JSON, Text
 from sqlalchemy.orm import declarative_base
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -34,6 +34,13 @@ class Dialog(Base):
     chat_mode = Column(String(64), nullable=False, default='assistant')
     start_time = Column(DateTime, nullable=False, default=datetime.now)
     messages = Column(JSON(), nullable=False)
+
+
+class Prompt(Base):
+    __tablename__ = 'prompt'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    short_desc = Column(String(64), nullable=False)
+    description = Column(Text, nullable=False)
 
 
 if __name__ == '__main__':

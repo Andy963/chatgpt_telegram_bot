@@ -4,7 +4,7 @@ from typing import Optional, Any
 
 from sqlalchemy.orm import sessionmaker
 
-from .models import User, Dialog, engine
+from .models import User, Dialog, engine, Prompt
 
 
 class Database:
@@ -67,6 +67,20 @@ class Database:
         if dialog_id is None:
             dialog_id = self.get_user_attribute(user_id, "current_dialog_id")
         self.session.query(Dialog).filter_by(dialog_id=dialog_id).update({'messages': dialog_messages})
+        self.session.commit()
+
+    def get_prompts(self):
+        return self.session.query(Prompt).all()
+
+    def get_prompt(self, _id: int):
+        return self.session.query(Prompt).filter_by(id=_id).first()
+
+    def add_new_prompt(self, desc: str, prompt: str):
+        self.session.add(Prompt(**{'description': prompt, 'short_desc': desc}))
+        self.session.commit()
+
+    def del_prompt(self, _id: int):
+        self.session.query(Prompt).filter_by(id=_id).delete()
         self.session.commit()
 
     def __enter__(self):

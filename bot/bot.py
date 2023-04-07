@@ -215,7 +215,8 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             if i == 0:  # send first message (then it'll be edited if message streaming is enabled)
                 await tip_message.delete()
                 try:
-                    sent_message = await update.message.reply_text(f"🗣\n\n<pre>{answer}</pre>", reply_to_message_id=message_id,
+                    sent_message = await update.message.reply_text(f"🗣\n\n<pre>{answer}</pre>",
+                                                                   reply_to_message_id=message_id,
                                                                    parse_mode=ParseMode.HTML)
                 except telegram.error.BadRequest as e:
                     if str(e).startswith("Message must be non-empty"):  # first answer chunk from openai was empty
@@ -540,6 +541,8 @@ async def dispatch_callback_handle(update: Update, context: CallbackContext):
         await ocr_handle(update, context)
     elif query.data.startswith('url'):
         await url_link_handle(update, context)
+    elif query.data.startswith('prompt'):
+        await prompt_handle(update, context)
 
 
 async def error_handle(update: Update, context: CallbackContext) -> None:
@@ -564,3 +567,60 @@ async def error_handle(update: Update, context: CallbackContext) -> None:
             await context.bot.send_message(update.effective_chat.id, message_chunk, parse_mode=ParseMode.HTML)
     except Exception as e:
         await context.bot.send_message(update.effective_chat.id, "Some error in error handler")
+
+
+async def list_prompt_handle(update: Update, context: CallbackContext) -> None:
+    """ list the prompt already exist"""
+    prompts = db.get_prompts()
+    if len(prompts) == 0:
+        await update.message.reply_text("No prompt yet, please add one first.")
+        return
+    text = "Here are the prompts:\n"
+
+    btns = InlineKeyboardMarkup([[InlineKeyboardButton(
+        f"{prompt.id} {prompt.short_desc}", callback_data=f'prompt|{prompt.id}')] for prompt in prompts])
+    await update.message.reply_text(text, reply_to_message_id=update.message.message_id,
+                                    reply_markup=btns, parse_mode=ParseMode.HTML)
+
+
+async def new_prompt_handle(update: Update, context: CallbackContext):
+    """add a new prompt"""
+    try:
+        _, data = update.message.text.split(" ", 1)
+        short_desc, prompt = data.split('|')
+        db.add_new_prompt(short_desc, prompt)
+        await update.message.reply_text(f"Prompt ({short_desc}) added successfully.")
+    except ValueError as ve:
+        logger.error(ve)
+        await update.message.reply_text("Prompt format error, please try again.")
+
+
+async def del_prompt_handle(update: Update, context: CallbackContext):
+    """delete a prompt"""
+    try:
+        prompt_id = update.message.text.split(" ")[1]
+        db.del_prompt(prompt_id)
+        await update.message.reply_text(f"Prompt ({prompt_id}) deleted successfully.")
+    except ValueError as ve:
+        logger.error(ve)
+        await update.message.reply_text("Prompt format error, please try again.")
+
+
+async def prompt_handle(update: Update, context: CallbackContext):
+    """handle prompt callback query"""
+    query = update.callback_query
+    prompt_id = query.data.split("|")[1]
+    prompt = db.get_prompt(int(prompt_id))
+    if prompt:
+        tip_message = await query.message.reply_text("I'm thinking...")
+        answer, _ = gpt_service.send_message(prompt.description, dialog_messages=[], chat_mode='assistant')
+        if not answer:
+            await query.message.reply_text("I have no idea about this.")
+            return
+        elif config.telegram_typing_effect:
+            await send_like_tying(update, context, answer)
+        else:
+            await query.message.reply_text(answer, parse_mode=ParseMode.HTML)
+        await tip_message.delete()
+    else:
+        await query.message.reply_text("Prompt not found.")
