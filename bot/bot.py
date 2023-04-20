@@ -360,7 +360,11 @@ async def voice_message_handle(update: Update, context: CallbackContext):
                     await send_like_tying(update, context, answer)
                 else:
                     await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
-                await reply_voice(update, context, answer)
+                # check if a text_to_speech key is provided
+                if config.azure_text2speech_key:
+                    await reply_voice(update, context, answer)
+                else:
+                    await update.message.reply_text('No azure text to speech key provided, No voice answer.', parse_mode=ParseMode.HTML)
             new_dialog_message = {"user": recognized_text, "assistant": answer,
                                   "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
             db.set_dialog_messages(
