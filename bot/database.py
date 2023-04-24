@@ -59,8 +59,28 @@ class Database:
         self.check_if_user_exists(user_id, raise_exception=True)
         if dialog_id is None:
             dialog_id = self.get_user_attribute(user_id, "current_dialog_id")
-        dialog = self.session.query(Dialog).filter_by(dialog_id=dialog_id).first()
-        return dialog.messages
+        dialog = self.session.query(Dialog).filter_by(id=str(dialog_id)).first()
+        if dialog:
+            return dialog.messages
+        return 'No dialog found'
+
+    def get_real_dialog_id(self, user_id: str, dialog_id: int) -> int:
+        """
+         if dialog_id is -1 then get the first dialog
+         else from the latest dialog
+        :param user_id: the user_id
+        :param dialog_id: user input dialog_id
+        :rtype: int
+        """
+        self.check_if_user_exists(user_id, raise_exception=True)
+        dq = self.session.query(Dialog).filter_by(user_id=user_id)
+        if dialog_id in [0, None]:
+            dialog_id = dq.order_by(Dialog.start_time.desc())[0].id
+        elif dialog_id < 0:
+            dialog_id = dq.order_by(Dialog.start_time.asc())[-dialog_id - 1].id
+        else:
+            dialog_id = dq.order_by(Dialog.start_time.desc())[dialog_id - 1].id
+        return dialog_id
 
     def set_dialog_messages(self, user_id: str, dialog_messages: list, dialog_id: Optional[str] = None):
         self.check_if_user_exists(user_id, raise_exception=True)

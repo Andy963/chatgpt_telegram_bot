@@ -68,11 +68,11 @@ TODO:
 - [x] picture ocr and translate, summary, tell story joke etc.
 - [x] bing chat (gpt4) ( cookies required)
 - [x] balance check from openai 
-- [ ] voice story
+- [ ] ~~voice story~~
 - [x] prompt list
-- [ ] pdf && article analysis
-- [ ] bard .
-- [ ] export history.
+- [ ] pdf && article analysis (rate limit to 3/min, it's hard maybe later)
+- [ ] ~~bard~~ (no api, and it's weak, maybe claude is better).
+- [x] export history(only text for now).
   if you are using ubuntu 22.04, you need to install the latest libssl1.1 either as a binary package, or by compiling it
   from sources.
 

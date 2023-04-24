@@ -12,7 +12,7 @@ from telegram.ext import (
 from bot import config
 from bot.bot import start_handle, help_handle, message_handle, retry_handle, new_dialog_handle, show_chat_modes_handle, \
     set_chat_mode_handle, error_handle, voice_message_handle, photo_handle, dispatch_callback_handle, balance_handle, \
-    new_prompt_handle, list_prompt_handle, del_prompt_handle
+    new_prompt_handle, list_prompt_handle, del_prompt_handle, export_handle
 
 
 def run_bot() -> None:
@@ -37,6 +37,7 @@ def run_bot() -> None:
     application.add_handler(CommandHandler("lp", list_prompt_handle, filters=user_filter))
     application.add_handler(CommandHandler("dp", del_prompt_handle, filters=user_filter))
     application.add_handler(CommandHandler("mode", show_chat_modes_handle, filters=user_filter))
+    application.add_handler(CommandHandler("export", export_handle, filters=user_filter))
     application.add_handler(CallbackQueryHandler(set_chat_mode_handle, pattern="^set_chat_mode"))
 
     application.add_handler(

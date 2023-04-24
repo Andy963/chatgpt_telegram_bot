@@ -364,7 +364,8 @@ async def voice_message_handle(update: Update, context: CallbackContext):
                 if config.azure_text2speech_key:
                     await reply_voice(update, context, answer)
                 else:
-                    await update.message.reply_text('No azure text to speech key provided, No voice answer.', parse_mode=ParseMode.HTML)
+                    await update.message.reply_text('No azure text to speech key provided, No voice answer.',
+                                                    parse_mode=ParseMode.HTML)
             new_dialog_message = {"user": recognized_text, "assistant": answer,
                                   "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
             db.set_dialog_messages(
@@ -628,3 +629,37 @@ async def prompt_handle(update: Update, context: CallbackContext):
         await tip_message.delete()
     else:
         await query.message.reply_text("Prompt not found.")
+
+
+async def export_handle(update: Update, context: CallbackContext):
+    """
+     export latest dialog as default
+    """
+    await register_user_if_not_exists(update, context, update.message.from_user)
+    user_id = update.message.from_user.id
+    db.set_user_attribute(user_id, "last_interaction", datetime.now())
+    dialog_id = None
+    if ' ' in update.message.text:
+        _, dialog_id = update.message.text.split(" ", 1)
+        dialog_id = dialog_id.strip()
+        if '-' in dialog_id:
+            dialog_id = dialog_id.split('-')[1]
+            if dialog_id.isdigit():
+                dialog_id = -int(dialog_id)
+        elif dialog_id.isdigit():
+            dialog_id = int(dialog_id)
+        else:
+            await update.message.reply_text("Invalid dialog id.")
+
+    dialog_id = db.get_real_dialog_id(str(user_id), dialog_id)
+    messages = db.get_dialog_messages(str(user_id), dialog_id)
+    if messages:
+        with open('messages.txt', 'w') as f:
+            for msg in messages:
+                f.write(f"User: {msg['user']}\n")
+                f.write(f"GPT: {msg['assistant']}\n")
+        if Path('messages.txt').exists():
+            await context.bot.sendDocument(chat_id=update.effective_chat.id, document=open('messages.txt', 'rb'))
+            Path('messages.txt').unlink()
+    else:
+        await update.message.reply_text("No message to export.")
