@@ -24,7 +24,7 @@ from . import config
 from .bing import BingSearch
 from .database import Database
 from .helper import send_like_tying, check_contain_code, render_msg_with_code, get_main_lang, AzureService, \
-    num_tokens_from_string, long_text_tokenizer
+    num_tokens_from_string
 from .log import logger
 
 # setup
@@ -296,9 +296,9 @@ async def url_link_handle(update: Update, context: CallbackContext):
         text = re.sub(r'\s', '', text)
         if not text:
             await context.bot.send_message(text=f"can't get text from this url", chat_id=query.message.chat_id)
-        if num_tokens_from_string(text)[0] > 10000:
-            await context.bot.send_message(text='This message is more than 10000 tokens, will be ignored for now',
-                                           chat_id=query.message.chat_id)
+        if total_tokens := num_tokens_from_string(text)[0] > 10000:
+            await context.bot.send_message(text=f'This message is more than 10000 tokens(Total:{total_tokens}), '
+                                                f'watch your credit', chat_id=query.message.chat_id)
 
         tip_message = await context.bot.send_message(text="I'm working on it, please wait...",
                                                      chat_id=query.message.chat_id,
