@@ -12,6 +12,7 @@ from pathlib import Path
 import azure.cognitiveservices.speech as speechsdk
 import openai
 import requests
+import tiktoken
 from azure.cognitiveservices.vision.computervision import ComputerVisionClient
 from msrest.authentication import CognitiveServicesCredentials
 from telegram.constants import ParseMode
@@ -276,3 +277,20 @@ class AzureService:
             img_stream.close()
             Path(image_path).unlink()
         return text
+
+
+def num_tokens_from_string(string: str, encoding_name: str = 'gpt2') -> tuple:
+    """Returns the number of tokens in a text string."""
+    encoding = tiktoken.get_encoding(encoding_name)
+    tokens = encoding.encode(string)
+    return len(tokens), tokens, encoding
+
+
+def long_text_tokenizer(text: str) -> list:
+    """
+    long text split with 1000 token and return a list
+    """
+    text = re.sub(r'\s', '', text)
+    num, tokens, encoding = num_tokens_from_string(text)
+    token_list = [encoding.decode(tokens[i:i + 1000]) for i in range(0, num, 1000)]
+    return token_list

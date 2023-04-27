@@ -5,16 +5,15 @@ allowed_telegram_usernames: [ ]  # if empty, the bot is available to anyone
 openai_api_key: ""
 openai_engine: "gpt-3.5-turbo" # currently not support davinci anymore
 openai_response_streaming: true
+openai_session_key: "" # use for get your balance
 
 azure_text2speech_key: ""
 azure_speech2text_key: ""
 azure_recognize_key: ""
 azure_recognize_endpoint: ""
+azure_bing_key: ""
+azure_bing_endpoint: ""
 azure_region: ""
 
 new_dialog_timeout: 600  # new dialog starts after timeout (in seconds)
 reply_voice_with_voice: true
-
-bing_cookies_path: "/etc/gpt/cookies.json"
-bing_proxy: "socks5://127.0.0.1:1080"
-bing_no_links: true

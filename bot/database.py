@@ -62,7 +62,7 @@ class Database:
         dialog = self.session.query(Dialog).filter_by(id=str(dialog_id)).first()
         if dialog:
             return dialog.messages
-        return 'No dialog found'
+        return []
 
     def get_real_dialog_id(self, user_id: str, dialog_id: int) -> int:
         """

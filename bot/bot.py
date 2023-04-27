@@ -23,7 +23,8 @@ from . import chatgpt
 from . import config
 from .bing import BingSearch
 from .database import Database
-from .helper import send_like_tying, check_contain_code, render_msg_with_code, get_main_lang, AzureService
+from .helper import send_like_tying, check_contain_code, render_msg_with_code, get_main_lang, AzureService, \
+    num_tokens_from_string, long_text_tokenizer
 from .log import logger
 
 # setup
@@ -284,13 +285,7 @@ async def url_link_handle(update: Update, context: CallbackContext):
     try:
         user_id = update.callback_query.from_user.id
         query = update.callback_query
-        action = query.data.split('|')[1]
-        prompt = ''
-        if action == 'summary':
-            prompt = 'summary this text'
-        elif action == 'point':
-            prompt = 'list the main point of this text'
-
+        # action = query.data.split('|')[1]
         url = query.message.reply_to_message.text
         if not url:
             await context.bot.send_message(text=f"can't get text from this url", chat_id=query.message.chat_id)
@@ -298,16 +293,19 @@ async def url_link_handle(update: Update, context: CallbackContext):
         response.encoding = 'utf-8'
         soup = BeautifulSoup(response.text, 'html.parser')
         text = soup.get_text()
-        if len(text) > 500:
-            await context.bot.send_message(
-                text='This message is more than 500 words, Keep an eye on your token balance.',
-                chat_id=query.message.chat_id, parse_mode=ParseMode.HTML)
+        text = re.sub(r'\s', '', text)
+        if not text:
+            await context.bot.send_message(text=f"can't get text from this url", chat_id=query.message.chat_id)
+        if num_tokens_from_string(text)[0] > 10000:
+            await context.bot.send_message(text='This message is more than 10000 tokens, will be ignored for now',
+                                           chat_id=query.message.chat_id)
+
         tip_message = await context.bot.send_message(text="I'm working on it, please wait...",
                                                      chat_id=query.message.chat_id,
                                                      parse_mode=ParseMode.HTML)
-        answer, n_removed = await gpt_service.send_message(text + prompt)
+        answer = await gpt_service.long_text_summary(text)
+        await tip_message.delete()
         if answer:
-            await tip_message.delete()
             await context.bot.send_message(text=answer, chat_id=query.message.chat_id, parse_mode=ParseMode.HTML)
             new_dialog_message = {"user": text, "assistant": answer,
                                   "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}

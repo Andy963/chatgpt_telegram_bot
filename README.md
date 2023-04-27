@@ -1,8 +1,5 @@
 # ChatGPT Telegram Bot: **Fast. No daily limits. Special chat modes**
 
-<div align="center">
-<img src="https://raw.githubusercontent.com/karfly/chatgpt_telegram_bot/main/static/header.png" align="center" style="width: 100%" />
-</div>
 
 <p align="center">
 <a href="https://t.me/chatgpt_karfly_bot" alt="Run Telegram Bot shield"><img src="https://img.shields.io/badge/RUN-Telegram%20Bot-blue" /></a>
@@ -13,7 +10,7 @@ accessible through an archaic web interface.
 
 This repo is ChatGPT re-created with GPT-3.5 LLM as Telegram Bot. **And it works great.**
 
-You can deploy your own bot, or use mine: [@chatgpt_karfly_bot](https://t.me/chatgpt_karfly_bot)
+You can deploy your own bot
 
 ~~if you want to use 'text-davinci-003' set the `use_chatgpt_api: false` in config.yml~~
 
@@ -29,6 +26,7 @@ You can deploy your own bot, or use mine: [@chatgpt_karfly_bot](https://t.me/cha
 - multi language voice message support (azure TTS)
 - picture ocr and translate, summary, tell story joke etc.
 - if you are not satisfied with gpt-3.5 answer, you can use ask new bing.
+- parse a url link(only summary the text for now)
 
 ## Bot commands
 
@@ -70,6 +68,7 @@ TODO:
 - [x] balance check from openai 
 - [ ] ~~voice story~~
 - [x] prompt list
+- [x] get content from url and summary the content
 - [ ] pdf && article analysis (rate limit to 3/min, it's hard maybe later)
 - [ ] ~~bard~~ (no api, and it's weak, maybe claude is better).
 - [x] export history(only text for now).

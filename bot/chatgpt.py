@@ -1,3 +1,5 @@
+import time
+
 import openai
 import requests
 
@@ -151,6 +153,50 @@ class ChatGPT:
     def _postprocess_answer(answer):
         answer = answer.strip()
         return answer
+
+    def summary_part(self, messages: list, step: int = 2000, model: str = 'gpt-3.5-turbo'):
+        """
+         chat with openai
+        :param step: word count each time
+        :type step: int
+        :param messages: list of message to send
+        :type messages: list
+        :return:
+        :rtype: tuple(str, int)
+        """
+        rs = openai.ChatCompletion.create(
+            model=model,
+            messages=messages,
+            **self.OPENAI_COMPLETION_OPTIONS
+        )
+
+        return rs["choices"][0]["message"]["content"], step
+
+    async def long_text_summary(self, text: str, step: int = 2000):
+        """summary long text step by step
+        """
+        messages = [
+            {"role": "system", "content": """From Now on pretend you are GPT4, An top science, Good at 
+            extracting article information in concise language. Read the article and write the key point(summary): 
+            and there are more content will provide to update the answer(Write your answer In Chinese):
+             Remember: Just update after reading new content each time, don’t delete the previous content. """},
+            {"role": "user", "content": text[:step]}]
+        text = text[step:]
+        try:
+            answer = ""
+            while text:
+                answer, rs_tokens = self.summary_part(messages)
+                text = text[rs_tokens:]
+                if text:
+                    time.sleep(16)  # openai api rate limit 3 req/per minute
+                    messages[-1]["content"] = f""" The keypoint  we can get from previous context is:{answer}.
+                              now the next part of the article is: {text[:rs_tokens]}. now update the update 
+                              the key point again.Remember: Just update after reading new content each time, 
+                              don’t delete the previous content. (Write your answer in Chinese).
+                              """
+            return answer
+        except Exception as e:
+            return None
 
     @staticmethod
     async def get_balance(session_key: str):
