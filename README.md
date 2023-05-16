@@ -27,6 +27,7 @@ You can deploy your own bot
 - picture ocr and translate, summary, tell story joke etc.
 - if you are not satisfied with gpt-3.5 answer, you can use ask new bing.
 - parse a url link(only summary the text for now)
+- paLM2 support 
 
 ## Bot commands
 
@@ -70,7 +71,7 @@ TODO:
 - [x] prompt list
 - [x] get content from url and summary the content
 - [ ] pdf && article analysis (rate limit to 3/min, it's hard maybe later)
-- [ ] ~~bard~~ (no api, and it's weak, maybe claude is better).
+- [x] paLM2 support
 - [x] export history(only text for now).
   if you are using ubuntu 22.04, you need to install the latest libssl1.1 either as a binary package, or by compiling it
   from sources.

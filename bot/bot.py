@@ -1,4 +1,4 @@
-import asyncio
+import html
 import html
 import json
 import math
@@ -12,7 +12,6 @@ from datetime import datetime
 from pathlib import Path
 
 import requests
-import telegram
 from bs4 import BeautifulSoup
 from pydub import AudioSegment
 from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup
@@ -193,81 +192,18 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         return
     # send typing action
     try:
-        tip_message = await update.message.reply_text("I'm working on it, please wait...", )
+
         message_id = update.message.message_id
-        answer = await palm_service.send_message(message,
-                                                 dialog_messages=db.get_dialog_messages(user_id, dialog_id=None))
-        await update.message.reply_text(f"🔎 \n\n<pre>{answer}</pre>",
-                                        reply_to_message_id=message_id,
-                                        parse_mode=ParseMode.HTML)
-        gen_answer = gpt_service.send_message_stream(message,
-                                                     dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),
-                                                     chat_mode=db.get_user_attribute(user_id, "current_chat_mode"), )
+        await update.message.reply_text('Which AI do you want to use?',
+                                        reply_to_message_id=update.message.message_id,
+                                        reply_markup=InlineKeyboardMarkup([
+                                            [InlineKeyboardButton("PaLM2", callback_data='model|PaLM2'),
+                                             InlineKeyboardButton("ChatGpt", callback_data='model|ChatGpt'),
+                                             ]
+                                        ]), parse_mode=ParseMode.HTML
+                                        )
 
-        await update.message.chat.send_action(action="typing")
-        prev_answer = ""
-        i = -1
-        async for gen_item in gen_answer:
-            i += 1
 
-            status = gen_item[0]
-            if status == "not_finished":
-                status, answer = gen_item
-            elif status == "finished":
-                status, answer, n_first_dialog_messages_removed = gen_item
-            else:
-                raise ValueError(f"Streaming status {status} is unknown")
-
-            answer = answer[:4096]  # telegram message limit
-            if i == 0:  # send first message (then it'll be edited if message streaming is enabled)
-                await tip_message.delete()
-                try:
-                    sent_message = await update.message.reply_text(f"🗣\n\n<pre>{answer}</pre>",
-                                                                   reply_to_message_id=message_id,
-                                                                   parse_mode=ParseMode.HTML)
-                except telegram.error.BadRequest as e:
-                    if str(e).startswith("Message must be non-empty"):  # first answer chunk from openai was empty
-                        i = -1  # try again to send first message
-                        await asyncio.sleep(0.01)
-                        continue
-                    else:
-                        sent_message = await update.message.reply_text(f"🗣\n\n<pre>{answer}</pre>",
-                                                                       reply_to_message_id=message_id, )
-            else:  # edit sent message
-
-                # update only when 100 new symbols are ready
-                if abs(len(answer) - len(prev_answer)) < 100 and status != "finished":
-                    await asyncio.sleep(0.01)
-                    continue
-                try:
-                    await context.bot.edit_message_text(f"🗣\n\n{answer}", chat_id=sent_message.chat_id,
-                                                        message_id=sent_message.message_id, parse_mode=ParseMode.HTML)
-                except telegram.error.BadRequest as e:
-                    if str(e).startswith("Message is not modified"):
-                        await asyncio.sleep(0.01)
-                        continue
-                    else:
-                        await context.bot.edit_message_text(f"🗣\n\n<pre>{answer}</pre>", chat_id=sent_message.chat_id,
-                                                            message_id=sent_message.message_id)
-
-            prev_answer = answer
-            # update user data
-        else:
-            # give choice to ask bing if answer is not satisfied
-            await update.message.reply_text('Not satisfied, Ask <strong>Bing</strong> ?',
-                                            reply_to_message_id=sent_message.message_id,
-                                            reply_markup=InlineKeyboardMarkup([
-                                                [InlineKeyboardButton("Yes", callback_data='bing|yes'),
-                                                 InlineKeyboardButton("Ignore", callback_data='bing|ignore')]
-                                            ]), parse_mode=ParseMode.HTML
-                                            )
-        new_dialog_message = {"user": message, "assistant": answer,
-                              "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
-        db.set_dialog_messages(
-            user_id,
-            db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message],
-            dialog_id=None
-        )
     except Exception as e:
         error_text = f"Sth went wrong: {e}"
         logger.error(f" error stack: {traceback.format_exc()}")
@@ -276,12 +212,12 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         return
 
     # send message if some messages were removed from the context
-    if n_first_dialog_messages_removed > 0:
-        if n_first_dialog_messages_removed == 1:
-            text = "✍️ <i>Note:</i> Your current dialog is too long, so your <b>first message</b> was removed from the context.\n Send /new command to start new dialog"
-        else:
-            text = f"✍️ <i>Note:</i> Your current dialog is too long, so <b>{n_first_dialog_messages_removed} first messages</b> were removed from the context.\n Send /new command to start new dialog"
-        await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+    # if n_first_dialog_messages_removed > 0:
+    #     if n_first_dialog_messages_removed == 1:
+    #         text = "✍️ <i>Note:</i> Your current dialog is too long, so your <b>first message</b> was removed from the context.\n Send /new command to start new dialog"
+    #     else:
+    #         text = f"✍️ <i>Note:</i> Your current dialog is too long, so <b>{n_first_dialog_messages_removed} first messages</b> were removed from the context.\n Send /new command to start new dialog"
+    #     await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
 
 async def url_link_handle(update: Update, context: CallbackContext):
@@ -467,34 +403,6 @@ async def photo_handle(update: Update, context: CallbackContext):
         logger.error(f"photo handle error stack: {traceback.format_exc()}")
 
 
-async def bing_handle(update: Update, context: CallbackContext):
-    """handle bing callback query"""
-    user_id = update.callback_query.from_user.id
-    query = update.callback_query
-    dialog_messages = db.get_dialog_messages(user_id, dialog_id=None)
-    if len(dialog_messages) == 0:
-        await update.message.reply_text("No message to retry 🤷‍♂️")
-        return
-    last_dialog_message = dialog_messages.pop()
-    _, yes_no = query.data.split("|")
-    if yes_no == "yes":
-        tip_message = await context.bot.send_message(
-            text="I'm searching on <strong>bing</strong> for you, please wait...", chat_id=query.message.chat_id,
-            parse_mode=ParseMode.HTML)
-        rsp = bing_service.search_web(last_dialog_message['user'])
-        if rsp and len(rsp) > 0:
-            await query.message.chat.send_action(action="typing")
-            text = "Here are some results from <strong>bing</strong>:\n"
-            for i, item in enumerate(rsp, 1):
-                if i == 1:
-                    await tip_message.delete()
-                url, name = item['url'], item['name']
-                text += f"<a href='{url}'>{i}.{name}</a>\n"
-            await context.bot.send_message(chat_id=query.message.chat_id, text=text, parse_mode=ParseMode.HTML,
-                                           disable_web_page_preview=True)
-        else:
-            await query.message.reply_text("No results from bing 😔")
-
 
 async def ocr_handle(update: Update, context: CallbackContext):
     """Handle ocr callback query"""
@@ -541,11 +449,51 @@ async def ocr_handle(update: Update, context: CallbackContext):
         await query.message.reply_text("No text found in the picture", parse_mode=ParseMode.HTML)
 
 
+async def palm_handle(update, context):
+    query = update.callback_query
+    message = query.message.reply_to_message.text
+    tip_message = await context.bot.send_message(text="I'm working on it, please wait...",
+                                                 chat_id=query.message.chat_id,
+                                                 parse_mode=ParseMode.HTML)
+    answer, tr_message= await palm_service.send_message(message, dialog_messages=None)
+    message_id = query.message.reply_to_message.message_id
+    await tip_message.delete()
+    await context.bot.send_message(text=f"🗣:\n\n{tr_message}\n\n<pre>{answer}</pre>",
+                                   chat_id=query.message.chat_id,
+                                   reply_to_message_id=message_id, parse_mode=ParseMode.HTML)
+
+
+async def chatgpt_handle(update, context):
+    user_id = update.callback_query.from_user.id
+    query = update.callback_query
+    message = query.message.reply_to_message.text
+    tip_message = await context.bot.send_message(text="I'm working on it, please wait...",
+                                                 chat_id=query.message.chat_id,
+                                                 parse_mode=ParseMode.HTML)
+    answer, _ = gpt_service.send_message(message, dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),
+                                         chat_mode=db.get_user_attribute(user_id, "current_chat_mode"), )
+    message_id = query.message.reply_to_message.message_id
+    await tip_message.delete()
+    await context.bot.send_message(text=f"🗣\n\n<pre>{answer}</pre>", chat_id=query.message.chat_id,
+                                   reply_to_message_id=message_id, parse_mode=ParseMode.HTML)
+    new_dialog_message = {"user": message, "assistant": answer,
+                          "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
+    db.set_dialog_messages(
+        user_id,
+        db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message],
+        dialog_id=None
+    )
+
+
 async def dispatch_callback_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update.callback_query, context, update.callback_query.from_user)
     query = update.callback_query
-    if query.data.startswith("bing"):
-        await bing_handle(update, context)
+    if query.data.startswith("model"):
+        _, model = query.data.split('|')
+        if model == 'ChatGpt':
+            await chatgpt_handle(update, context)
+        elif model == 'PaLM2':
+            await palm_handle(update, context)
     elif query.data.startswith("ocr"):
         await ocr_handle(update, context)
     elif query.data.startswith('url'):

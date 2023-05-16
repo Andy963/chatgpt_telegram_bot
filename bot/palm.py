@@ -39,9 +39,9 @@ class GooglePalm:
         context = self.gen_context(message, dialog_messages)
         tr_message = azure_service.translate(message)
         message = tr_message if tr_message else message
-        response = palm.chat(model=self.model, messages=message, context=context, examples=examples)
+        response = palm.chat(model=self.model, messages=message, context=context, examples=examples, candidate_count=1)
         answer = response.last
-        return answer
+        return answer, tr_message
 
     @staticmethod
     def gen_context(message, dialog_message: list):
