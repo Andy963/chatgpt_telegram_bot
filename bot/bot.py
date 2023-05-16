@@ -20,7 +20,6 @@ from telegram.ext import CallbackContext
 
 from . import chatgpt, palm
 from . import config
-from .bing import BingSearch
 from .database import Database
 from .helper import send_like_tying, check_contain_code, render_msg_with_code, get_main_lang, AzureService, \
     num_tokens_from_string
@@ -40,7 +39,6 @@ HELP_MESSAGE = """Commands:
 
 azure_service = AzureService()
 gpt_service = chatgpt.ChatGPT(model_name=config.openai_engine, use_stream=config.openai_response_streaming)
-bing_service = BingSearch()
 palm_service = palm.GooglePalm()
 
 
