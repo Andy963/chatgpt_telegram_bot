@@ -13,7 +13,10 @@ import azure.cognitiveservices.speech as speechsdk
 import openai
 import requests
 import tiktoken
+from azure.ai.translation.text import TextTranslationClient, TranslatorCredential
+from azure.ai.translation.text.models import InputTextItem
 from azure.cognitiveservices.vision.computervision import ComputerVisionClient
+from azure.core.exceptions import HttpResponseError
 from msrest.authentication import CognitiveServicesCredentials
 from telegram.constants import ParseMode
 
@@ -114,6 +117,28 @@ class AzureService:
     region = config.azure_region
     client = ComputerVisionClient(recognize_endpoint,
                                   CognitiveServicesCredentials(recognize_key))
+
+    translate_key = config.azure_translate_key
+    translate_endpoint = config.azure_translate_endpoint
+    credential = TranslatorCredential(translate_key, region)
+    text_translator = TextTranslationClient(endpoint=translate_endpoint, credential=credential)
+
+    def translate(self, text: str, src_lang: str = 'zh-Hans', target_lang: str = 'en-us'):
+        """use azure translate api to translate text"""
+        try:
+            target_languages = [target_lang]
+            input_text_elements = [InputTextItem(text=text)]
+
+            response = self.text_translator.translate(content=input_text_elements, to=target_languages)
+            translation = response[0] if response else None
+            rs = ""
+            for translated_text in translation.translations:
+                rs += translated_text.text
+            return rs
+        except HttpResponseError as exception:
+            logger.error(f"translate error: {exception}")
+            logger.error(f"translate error Message: {exception.error.message}")
+        return ''
 
     @staticmethod
     def parse_text(text):

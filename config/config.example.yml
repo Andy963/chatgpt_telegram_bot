@@ -14,6 +14,10 @@ azure_recognize_endpoint: ""
 azure_bing_key: ""
 azure_bing_endpoint: ""
 azure_region: ""
+azure_translate_key: ""
+azure_translate_endpoint: ""
+
+palm_api_key: ""
 
 new_dialog_timeout: 600  # new dialog starts after timeout (in seconds)
 reply_voice_with_voice: true

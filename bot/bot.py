@@ -19,7 +19,7 @@ from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
 
-from . import chatgpt
+from . import chatgpt, palm
 from . import config
 from .bing import BingSearch
 from .database import Database
@@ -42,6 +42,7 @@ HELP_MESSAGE = """Commands:
 azure_service = AzureService()
 gpt_service = chatgpt.ChatGPT(model_name=config.openai_engine, use_stream=config.openai_response_streaming)
 bing_service = BingSearch()
+palm_service = palm.GooglePalm()
 
 
 async def register_user_if_not_exists(update: Update, context: CallbackContext, user: User):
@@ -194,6 +195,11 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
     try:
         tip_message = await update.message.reply_text("I'm working on it, please wait...", )
         message_id = update.message.message_id
+        answer = await palm_service.send_message(message,
+                                                 dialog_messages=db.get_dialog_messages(user_id, dialog_id=None))
+        await update.message.reply_text(f"🔎 \n\n<pre>{answer}</pre>",
+                                        reply_to_message_id=message_id,
+                                        parse_mode=ParseMode.HTML)
         gen_answer = gpt_service.send_message_stream(message,
                                                      dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),
                                                      chat_mode=db.get_user_attribute(user_id, "current_chat_mode"), )

@@ -25,7 +25,9 @@ azure_recognize_endpoint = config_yaml.get("azure_recognize_endpoint")
 azure_bing_key = config_yaml.get("azure_bing_key", None)
 azure_bing_endpoint = config_yaml.get("azure_bing_endpoint")
 azure_region = config_yaml.get("azure_region", 'eastasia')
+azure_translate_key = config_yaml.get("azure_translate_key", None)
+azure_translate_endpoint = config_yaml.get("azure_translate_endpoint", None)
 
 new_dialog_timeout = config_yaml.get("new_dialog_timeout", 600)
-
+palm_api_key = config_yaml.get('palm_api_key', None)
 log = '/etc/gpt/chatgpt.log'
