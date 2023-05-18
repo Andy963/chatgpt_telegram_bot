@@ -9,10 +9,10 @@ from telegram.ext import (
     filters
 )
 
-from bot import config
 from bot.bot import start_handle, help_handle, message_handle, retry_handle, new_dialog_handle, show_chat_modes_handle, \
     set_chat_mode_handle, error_handle, voice_message_handle, photo_handle, dispatch_callback_handle, balance_handle, \
     new_prompt_handle, list_prompt_handle, del_prompt_handle, export_handle
+from config import config
 
 
 def run_bot() -> None:
@@ -52,7 +52,7 @@ def run_bot() -> None:
 
 
 if __name__ == "__main__":
-    from bot.log import logger
+    from logs.log import logger
 
     logger.info('Starting bot...')
     run_bot()

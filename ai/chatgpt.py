@@ -3,7 +3,7 @@ import time
 import openai
 import requests
 
-from . import config
+from config import config
 
 openai.api_key = config.openai_api_key
 

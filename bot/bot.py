@@ -18,12 +18,12 @@ from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
 
-from . import chatgpt, palm
-from . import config
-from .database import Database
+from ai import chatgpt, palm2
+from config import config
+from database.model_view import Database
+from logs.log import logger
 from .helper import send_like_tying, check_contain_code, render_msg_with_code, get_main_lang, AzureService, \
     num_tokens_from_string
-from .log import logger
 
 # setup
 
@@ -39,7 +39,7 @@ HELP_MESSAGE = """Commands:
 
 azure_service = AzureService()
 gpt_service = chatgpt.ChatGPT(model_name=config.openai_engine, use_stream=config.openai_response_streaming)
-palm_service = palm.GooglePalm()
+palm_service = palm2.GooglePalm()
 
 
 async def register_user_if_not_exists(update: Update, context: CallbackContext, user: User):
@@ -193,9 +193,12 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         await update.message.reply_text('Which AI do you want to use?',
                                         reply_to_message_id=update.message.message_id,
                                         reply_markup=InlineKeyboardMarkup([
-                                            [InlineKeyboardButton("PaLM2", callback_data='model|PaLM2'),
-                                             InlineKeyboardButton("ChatGpt", callback_data='model|ChatGpt'),
-                                             ]
+                                            [
+                                                InlineKeyboardButton("ChatGpt", callback_data='model|ChatGpt'),
+                                                InlineKeyboardButton("PaLM2", callback_data='model|PaLM2'),
+                                                InlineKeyboardButton("🇨🇳", callback_data=f"translate|zh"),
+                                                InlineKeyboardButton("🏴󠁧󠁢󠁥󠁮󠁧󠁿", callback_data=f"translate|en")
+                                            ]
                                         ]), parse_mode=ParseMode.HTML
                                         )
     except Exception as e:
@@ -440,15 +443,22 @@ async def palm_handle(update, context):
     tip_message = await context.bot.send_message(text="I'm working on it, please wait...",
                                                  chat_id=query.message.chat_id,
                                                  parse_mode=ParseMode.HTML)
-    answer, tr_message = await palm_service.send_message(message, dialog_messages=None)
+    tr_message = azure_service.translate(message)  # translate to english first
+    answer = await palm_service.send_message(tr_message, dialog_messages=None)
     message_id = query.message.reply_to_message.message_id
     await tip_message.delete()
-    answer_message = await context.bot.send_message(text=f"🗣:\n\n{tr_message}\n\n<pre>{answer}</pre>",
+    answer_message = await context.bot.send_message(text=f"🗣:\n\nASK: {tr_message}\n\n<pre>{answer}</pre>",
                                                     chat_id=query.message.chat_id,
                                                     reply_to_message_id=message_id, parse_mode=ParseMode.HTML)
-    translate_choice = [InlineKeyboardButton("英译汉", callback_data=f"translate|zh"),
-                        InlineKeyboardButton("汉译英", callback_data=f"translate|en")]
-    await context.bot.send_message(text='需要翻译？', reply_markup=InlineKeyboardMarkup([translate_choice]),
+    # if palm return None, then stop
+    if answer is None or str(answer).strip() == 'None':
+        await context.bot.send_message(text="⚠️ paLM2 returns None. Please try other model",
+                                       chat_id=query.message.chat_id,
+                                       reply_to_message_id=answer_message.message_id, parse_mode=ParseMode.HTML)
+        await answer_message.delete()
+        return
+    translate_choice = [InlineKeyboardButton("请帮我翻译成中文󠁧󠁢󠁥󠁮󠁧󠁿", callback_data=f"translate|zh"), ]
+    await context.bot.send_message(text='🆘 英文太难？', reply_markup=InlineKeyboardMarkup([translate_choice]),
                                    chat_id=query.message.chat_id,
                                    reply_to_message_id=answer_message.message_id, parse_mode=ParseMode.HTML)
 
@@ -457,7 +467,7 @@ async def chatgpt_handle(update, context):
     user_id = update.callback_query.from_user.id
     query = update.callback_query
     message = query.message.reply_to_message.text
-    tip_message = await context.bot.send_message(text="I'm working on it, please wait...",
+    tip_message = await context.bot.send_message(text="I'm working on it, please wait...", disable_notification=True,
                                                  chat_id=query.message.chat_id,
                                                  parse_mode=ParseMode.HTML)
     answer, _ = gpt_service.send_message(message, dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),

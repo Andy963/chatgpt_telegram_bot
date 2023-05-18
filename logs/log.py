@@ -1,10 +1,9 @@
 #!/usr/bin/python
 # coding:utf-8
 import logging
-import os
 from logging import handlers
 
-from . import config
+from config import config
 
 
 class FileSplitLogger:

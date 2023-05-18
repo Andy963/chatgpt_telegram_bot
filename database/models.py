@@ -3,11 +3,9 @@
 import os
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, create_engine, DateTime, JSON, Text
-from sqlalchemy.orm import declarative_base
+from sqlalchemy import Column, Integer, String, create_engine, DateTime, JSON, Text, ForeignKey
+from sqlalchemy.orm import declarative_base, relationship
 
-base_dir = os.path.abspath(os.path.dirname(__file__))
-engine = create_engine(f'sqlite:///{os.path.join(base_dir, "../db.sqlite")}')
 Base = declarative_base()
 
 
@@ -34,6 +32,14 @@ class Dialog(Base):
     chat_mode = Column(String(64), nullable=False, default='assistant')
     start_time = Column(DateTime, nullable=False, default=datetime.now)
     messages = Column(JSON(), nullable=False)
+    ai_model_id = Column(Integer, ForeignKey('ai_model.id'))
+    ai_model = relationship("AiModel", backref="dialogs")
+
+
+class AiModel(Base):
+    __tablename__ = 'ai_model'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(64), nullable=False, unique=True)
 
 
 class Prompt(Base):
@@ -42,6 +48,14 @@ class Prompt(Base):
     short_desc = Column(String(64), nullable=False)
     description = Column(Text, nullable=False)
 
+
+base_dir = os.path.abspath(os.path.dirname(__file__))
+db_file = f'sqlite:///{os.path.join(base_dir, "../db.sqlite")}'
+if not os.path.exists(db_file):
+    engine = create_engine(db_file, echo=False)
+    Base.metadata.create_all(engine)
+else:
+    engine = create_engine(db_file, echo=False)
 
 if __name__ == '__main__':
     Base.metadata.create_all(engine)

@@ -1,35 +1,20 @@
-# ChatGPT Telegram Bot: **Fast. No daily limits. Special chat modes**
+## Telegram AI Bot:
 
-
-<p align="center">
-<a href="https://t.me/chatgpt_karfly_bot" alt="Run Telegram Bot shield"><img src="https://img.shields.io/badge/RUN-Telegram%20Bot-blue" /></a>
-</p>
-
-We all love [chat.openai.com](https://chat.openai.com), but... It's TERRIBLY laggy, has daily limits, and is only
-accessible through an archaic web interface.
-
-This repo is ChatGPT re-created with GPT-3.5 LLM as Telegram Bot. **And it works great.**
+This repo a Telegram AI Bot(with chatgpt, palm2 etc.). **And it works great.**
 
 You can deploy your own bot
 
-~~if you want to use 'text-davinci-003' set the `use_chatgpt_api: false` in config.yml~~
+### Features
 
-## Features
-
-- Low latency replies (it usually takes about 3-5 seconds)
-- No request limits
-- Code highlighting
-- Special chat modes: 👩🏼‍🎓 Assistant, 👩🏼‍💻 Code Assistant, 🎬 Movie Expert. More soon
 - List of allowed Telegram users
-- user `chatgpt-3.5-turbo` default
+- ~~user `chatgpt-3.5-turbo` default~~ depends on your choice
 - reply with voice message (use azure text to speech)
 - multi language voice message support (azure TTS)
 - picture ocr and translate, summary, tell story joke etc.
-- if you are not satisfied with gpt-3.5 answer, you can use ask new bing.
 - parse a url link(only summary the text for now)
-- paLM2 support 
+- paLM2 support(use azure translate to en and ask palm2)
 
-## Bot commands
+### Bot commands
 
 - `/retry` – Regenerate last bot answer
 - `/new` – Start new dialog
@@ -38,17 +23,15 @@ You can deploy your own bot
 - `/balance` – Check your OpenAI balance (session key required)
 - `/lp` – List prompts (np, lp, dp: add new prompt, list prompt, del prompt with id)
 
-## Setup
+### Setup
 
-1. Get your [OpenAI API](https://openai.com/api/) key
+1. Get your [OpenAI API](https://openai.com/api/) or paLM2 key
 
 2. Get your Telegram bot token from [@BotFather](https://t.me/BotFather)
 
 3. Get your azure free trial account and get your azure key(text,speech,computer vision)
 
-4. Get your bing chat cookies
-
-5. Docker
+4. Docker
 
 for docker user:
 
@@ -61,18 +44,19 @@ TODO:
 
 - [x] support voice message.
 - [x] voice reply (use azure text to speech)
-- [x] code block
-- [x] typing effect
+- [x] ~~code block~~ removed
+- [x] ~~typing effect~~ hard to read, removed
 - [x] reply with multiple language voice (contains En & Zh, need azure)
 - [x] picture ocr and translate, summary, tell story joke etc.
-- [x] bing chat (gpt4) ( cookies required)
-- [x] balance check from openai 
+- [x] ~~bing chat (gpt4) ( cookies required)~~ cookie expired soon,removed
+- [x] balance check from openai
 - [ ] ~~voice story~~
 - [x] prompt list
-- [x] get content from url and summary the content
-- [ ] pdf && article analysis (rate limit to 3/min, it's hard maybe later)
+- [x] get content from url and summary the content(weak)
+- [ ] ~~pdf && article analysis (rate limit to 3/min, it's hard maybe later)~~ give up
 - [x] paLM2 support
 - [x] export history(only text for now).
+- [x] multi model dialog support
   if you are using ubuntu 22.04, you need to install the latest libssl1.1 either as a binary package, or by compiling it
   from sources.
 

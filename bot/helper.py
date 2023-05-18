@@ -20,8 +20,8 @@ from azure.core.exceptions import HttpResponseError
 from msrest.authentication import CognitiveServicesCredentials
 from telegram.constants import ParseMode
 
-from bot import config
-from .log import logger
+from config import config
+from logs.log import logger
 
 
 def render_msg_with_code(msg):

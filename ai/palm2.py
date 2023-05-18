@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# File: palm.py
+# File: palm2.py
 # Author: Zhou
 # Date: 2023/5/16
 # Copyright: 2023 Zhou
 # License:
-# Description: TODO
+# Description:  google paLM2 service
 import google.generativeai as palm
 
-from . import config
-from .helper import AzureService
+from bot.helper import AzureService
+from config import config
 
 palm.configure(api_key=config.palm_api_key)
 
@@ -37,11 +37,9 @@ class GooglePalm:
             dialog_messages = []
 
         context = self.gen_context(message, dialog_messages)
-        tr_message = azure_service.translate(message)
-        message = tr_message if tr_message else message
         response = palm.chat(model=self.model, messages=message, context=context, examples=examples, candidate_count=1)
         answer = response.last
-        return answer, tr_message
+        return answer
 
     @staticmethod
     def gen_context(message, dialog_message: list):
