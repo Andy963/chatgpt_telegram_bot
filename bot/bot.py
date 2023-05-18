@@ -190,8 +190,6 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         return
     # send typing action
     try:
-
-        message_id = update.message.message_id
         await update.message.reply_text('Which AI do you want to use?',
                                         reply_to_message_id=update.message.message_id,
                                         reply_markup=InlineKeyboardMarkup([
@@ -200,22 +198,12 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
                                              ]
                                         ]), parse_mode=ParseMode.HTML
                                         )
-
-
     except Exception as e:
         error_text = f"Sth went wrong: {e}"
         logger.error(f" error stack: {traceback.format_exc()}")
         # if error reply all the message rapidly
         await update.message.reply_text(error_text)
         return
-
-    # send message if some messages were removed from the context
-    # if n_first_dialog_messages_removed > 0:
-    #     if n_first_dialog_messages_removed == 1:
-    #         text = "✍️ <i>Note:</i> Your current dialog is too long, so your <b>first message</b> was removed from the context.\n Send /new command to start new dialog"
-    #     else:
-    #         text = f"✍️ <i>Note:</i> Your current dialog is too long, so <b>{n_first_dialog_messages_removed} first messages</b> were removed from the context.\n Send /new command to start new dialog"
-    #     await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
 
 async def url_link_handle(update: Update, context: CallbackContext):
@@ -401,7 +389,6 @@ async def photo_handle(update: Update, context: CallbackContext):
         logger.error(f"photo handle error stack: {traceback.format_exc()}")
 
 
-
 async def ocr_handle(update: Update, context: CallbackContext):
     """Handle ocr callback query"""
     user_id = update.callback_query.from_user.id
@@ -453,12 +440,17 @@ async def palm_handle(update, context):
     tip_message = await context.bot.send_message(text="I'm working on it, please wait...",
                                                  chat_id=query.message.chat_id,
                                                  parse_mode=ParseMode.HTML)
-    answer, tr_message= await palm_service.send_message(message, dialog_messages=None)
+    answer, tr_message = await palm_service.send_message(message, dialog_messages=None)
     message_id = query.message.reply_to_message.message_id
     await tip_message.delete()
-    await context.bot.send_message(text=f"🗣:\n\n{tr_message}\n\n<pre>{answer}</pre>",
+    answer_message = await context.bot.send_message(text=f"🗣:\n\n{tr_message}\n\n<pre>{answer}</pre>",
+                                                    chat_id=query.message.chat_id,
+                                                    reply_to_message_id=message_id, parse_mode=ParseMode.HTML)
+    translate_choice = [InlineKeyboardButton("英译汉", callback_data=f"translate|zh"),
+                        InlineKeyboardButton("汉译英", callback_data=f"translate|en")]
+    await context.bot.send_message(text='需要翻译？', reply_markup=InlineKeyboardMarkup([translate_choice]),
                                    chat_id=query.message.chat_id,
-                                   reply_to_message_id=message_id, parse_mode=ParseMode.HTML)
+                                   reply_to_message_id=answer_message.message_id, parse_mode=ParseMode.HTML)
 
 
 async def chatgpt_handle(update, context):
@@ -483,6 +475,18 @@ async def chatgpt_handle(update, context):
     )
 
 
+async def translate_handle(update, context, lang):
+    """对于需要翻译的消息，调用此函数使用azure 的翻译功能
+    """
+    target_lang = 'zh-Hans' if lang == 'zh' else 'en-us'
+    query = update.callback_query
+    text = query.message.reply_to_message.text.replace('🗣:', '', 1)
+    translated_text = azure_service.translate(text=text, target_lang=target_lang)
+    await context.bot.send_message(text=f"<pre>{translated_text}</pre>", chat_id=query.message.chat_id,
+                                   reply_to_message_id=query.message.reply_to_message.message_id,
+                                   parse_mode=ParseMode.HTML)
+
+
 async def dispatch_callback_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update.callback_query, context, update.callback_query.from_user)
     query = update.callback_query
@@ -492,6 +496,9 @@ async def dispatch_callback_handle(update: Update, context: CallbackContext):
             await chatgpt_handle(update, context)
         elif model == 'PaLM2':
             await palm_handle(update, context)
+    elif query.data.startswith("translate"):
+        _, lang = query.data.split('|')
+        await translate_handle(update, context, lang)
     elif query.data.startswith("ocr"):
         await ocr_handle(update, context)
     elif query.data.startswith('url'):
