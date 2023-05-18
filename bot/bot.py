@@ -440,9 +440,8 @@ async def ocr_handle(update: Update, context: CallbackContext):
 async def palm_handle(update, context):
     query = update.callback_query
     message = query.message.reply_to_message.text
-    tip_message = await context.bot.send_message(text="I'm working on it, please wait...",
-                                                 chat_id=query.message.chat_id,
-                                                 parse_mode=ParseMode.HTML)
+    tip_message = await context.bot.send_message(text="I'm working on it, please wait...", disable_notification=True,
+                                                 chat_id=query.message.chat_id, parse_mode=ParseMode.HTML)
     tr_message = azure_service.translate(message)  # translate to english first
     answer = await palm_service.send_message(tr_message, dialog_messages=None)
     message_id = query.message.reply_to_message.message_id
@@ -457,10 +456,25 @@ async def palm_handle(update, context):
                                        reply_to_message_id=answer_message.message_id, parse_mode=ParseMode.HTML)
         await answer_message.delete()
         return
-    translate_choice = [InlineKeyboardButton("请帮我翻译成中文󠁧󠁢󠁥󠁮󠁧󠁿", callback_data=f"translate|zh"), ]
-    await context.bot.send_message(text='🆘 英文太难？', reply_markup=InlineKeyboardMarkup([translate_choice]),
+    translate_choice = [InlineKeyboardButton("请帮我翻译成中文󠁧󠁢󠁥󠁮󠁧󠁿", callback_data=f"translate|zh"),
+                        InlineKeyboardButton("🗣 Read Aloud", callback_data=f"Read|en")
+                        ]
+    await context.bot.send_message(text='🆘 英文太难？懒得看？', reply_markup=InlineKeyboardMarkup([translate_choice]),
                                    chat_id=query.message.chat_id,
                                    reply_to_message_id=answer_message.message_id, parse_mode=ParseMode.HTML)
+
+
+async def read_handle(update, context):
+    """将答案读出来，azure text2speech"""
+    query = update.callback_query
+    chat_id = query.message.chat_id
+    message_id = query.message.reply_to_message.message_id
+    if not config.azure_text2speech_key:
+        await context.bot.send_message(text="⚠️ Please set azure text2speech key first", chat_id=chat_id,
+                                       replay_to_message_id=message_id, parse_mode=ParseMode.HTML)
+        return
+    message = query.message.reply_to_message.text
+    await reply_voice(update, context, message)
 
 
 async def chatgpt_handle(update, context):
@@ -468,8 +482,7 @@ async def chatgpt_handle(update, context):
     query = update.callback_query
     message = query.message.reply_to_message.text
     tip_message = await context.bot.send_message(text="I'm working on it, please wait...", disable_notification=True,
-                                                 chat_id=query.message.chat_id,
-                                                 parse_mode=ParseMode.HTML)
+                                                 chat_id=query.message.chat_id, parse_mode=ParseMode.HTML)
     answer, _ = gpt_service.send_message(message, dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),
                                          chat_mode=db.get_user_attribute(user_id, "current_chat_mode"), )
     message_id = query.message.reply_to_message.message_id
@@ -509,6 +522,8 @@ async def dispatch_callback_handle(update: Update, context: CallbackContext):
     elif query.data.startswith("translate"):
         _, lang = query.data.split('|')
         await translate_handle(update, context, lang)
+    elif query.data.startswith("Read"):
+        await read_handle(update, context)
     elif query.data.startswith("ocr"):
         await ocr_handle(update, context)
     elif query.data.startswith('url'):
