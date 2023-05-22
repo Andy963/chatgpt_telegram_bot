@@ -191,9 +191,9 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         handler_name = f"{default_model.lower()}_handle"
         answer_handler = globals().get(handler_name)
         if answer_handler:
-            await answer_handler(update, context, show_answer=True)
-            return
+            await answer_handler(update, context, show_answer=True, other_models=other_models)
 
+        print(f"other_models: {other_models}")
         if other_models:
             for model in other_models:
                 handler_name = f"{model.lower()}_handle"
@@ -447,6 +447,7 @@ async def palm2_handle(update, context, show_answer=False):
     else:
         tr_message = message
     answer = await palm_service.send_message(tr_message, dialog_messages=None)
+    print('palm2 answer', answer)
     message_id = update.message.message_id
     if show_answer:
         await tip_message.delete()
@@ -459,7 +460,6 @@ async def palm2_handle(update, context, show_answer=False):
                                        chat_id=update.message.chat_id,
                                        reply_to_message_id=answer_message.message_id, parse_mode=ParseMode.HTML)
         await answer_message.delete()
-        return
     user_id = update.message.from_user.id
     new_dialog_message = {"user": message, "assistant": answer,
                           "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
@@ -489,7 +489,16 @@ async def read_handle(update, context):
     await reply_voice(update, context, message)
 
 
-async def chatgpt_handle(update, context, show_answer=False):
+async def chatgpt_handle(update, context, show_answer=False, other_models=None):
+    """
+
+    :param update:
+    :param context:
+    :param show_answer:
+    if has other model
+    1. show buttons below the answer
+    2. callback to get the answer from the database
+    """
     user_id = update.message.from_user.id
     message = update.message.text
     if show_answer:
@@ -503,8 +512,16 @@ async def chatgpt_handle(update, context, show_answer=False):
         await tip_message.delete()
         await context.bot.send_message(text=f"🗣\n\n<pre>{answer}</pre>", chat_id=update.message.chat_id,
                                        reply_to_message_id=message_id, parse_mode=ParseMode.HTML)
+        #
+        if other_models:
+            btns = [InlineKeyboardButton(f"{model}", callback_data=f"get_other_model|{model}") for model in
+                    other_models]
+            await context.bot.send_message(text="try other models", chat_id=update.message.chat_id,
+                                           reply_to_message_id=message_id, parse_mode=ParseMode.HTML,
+                                           reply_markup=InlineKeyboardMarkup([btns]))
     new_dialog_message = {"user": message, "assistant": answer,
                           "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
+    print('gpt save message', new_dialog_message)
     db.set_dialog_messages(
         user_id, db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message],
         dialog_id=None, ai_model="ChatGpt"
@@ -523,15 +540,23 @@ async def translate_handle(update, context, lang):
                                    parse_mode=ParseMode.HTML)
 
 
+async def get_other_answer(update, context, model):
+    """ get the answer from the database"""
+    query = update.callback_query
+    dialog = db.get_dialog_messages(user_id=query.from_user.id, dialog_id=None, ai_model=model)
+    answer = dialog[-1]['assistant']
+    if answer:
+        await context.bot.send_message(text=f"<pre>{answer}</pre>", chat_id=query.message.chat_id,
+                                       reply_to_message_id=query.message.reply_to_message.message_id,
+                                       parse_mode=ParseMode.HTML)
+
+
 async def dispatch_callback_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update.callback_query, context, update.callback_query.from_user)
     query = update.callback_query
-    if query.data.startswith("model"):
+    if query.data.startswith("get_other_model"):
         _, model = query.data.split('|')
-        if model == 'ChatGpt':
-            await chatgpt_handle(update, context)
-        elif model == 'PaLM2':
-            await palm_handle(update, context)
+        await get_other_answer(update, context, model)
     elif query.data.startswith("translate"):
         _, lang = query.data.split('|')
         await translate_handle(update, context, lang)

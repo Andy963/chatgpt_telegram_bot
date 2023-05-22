@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional, Any
 
+from sqlalchemy import desc
 from sqlalchemy.orm import sessionmaker
 
 from .models import User, Dialog, engine, Prompt, AiModel
@@ -63,8 +64,7 @@ class Database:
             return None
         ai_model_obj = self.session.query(AiModel).filter_by(name=ai_model).first()
         if dialog_id is None:
-            dialog_id = self.get_user_attribute(user_id, "current_dialog_id")
-        dialog = self.session.query(Dialog).filter_by(id=str(dialog_id), ai_model=ai_model_obj).first()
+            dialog = self.session.query(Dialog).filter_by(ai_model=ai_model_obj).order_by(desc(Dialog.id)).first()
         if dialog:
             return dialog.messages
         return []
@@ -95,8 +95,17 @@ class Database:
             if dialog_id is None:
                 dialog_id = self.start_new_dialog(user_id)
         dialog_obj = self.session.query(Dialog).filter_by(dialog_id=dialog_id).first()
-        dialog_obj.messages = dialog_messages
-        dialog_obj.ai_model = ai_model_obj
+        if dialog_obj.ai_model != ai_model_obj:
+            new_dialog = Dialog(
+                **{'dialog_id': str(uuid.uuid4()), 'user_id': user_id, 'chat_mode': dialog_obj.chat_mode,
+                   'start_time': datetime.now()})
+            new_dialog.ai_model = ai_model_obj
+            new_dialog.messages = dialog_messages
+            self.session.add(new_dialog)
+        else:
+            dialog_obj.messages = dialog_messages
+            dialog_obj.ai_model = ai_model_obj
+
         self.session.commit()
 
     def get_prompts(self):
