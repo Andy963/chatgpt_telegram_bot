@@ -41,6 +41,8 @@ class AiModel(Base):
     __tablename__ = 'ai_model'
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(64), nullable=False, unique=True)
+    is_default = Column(Integer, nullable=False, default=0, comment='1: default, 0: not default')
+    is_available = Column(Integer, nullable=False, default=1, comment='1: available, 0: not available')
 
 
 class Prompt(Base):
@@ -57,8 +59,8 @@ if not os.path.exists(db_file):
     engine = create_engine(db_url, echo=False)
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
-    session.execute(text("INSERT INTO ai_model (name) VALUES ('ChatGpt')"))
-    session.execute(text("INSERT INTO ai_model (name) VALUES ('PaLM2')"))
+    session.execute(text("INSERT INTO ai_model (name,is_default,is_available) VALUES ('ChatGpt',1,1)"))
+    session.execute(text("INSERT INTO ai_model (name,is_default,is_available) VALUES ('PaLM2',0,1)"))
     session.commit()
     session.close()
 else:

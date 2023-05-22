@@ -46,6 +46,12 @@ class Database:
             raise ValueError(f"User {user_id} does not have a value for {key}")
         return getattr(user, key)
 
+    def get_available_models(self):
+        return [m.name for m in self.session.query(AiModel).filter_by(is_available=1).all()]
+
+    def get_default_model(self):
+        return self.session.query(AiModel).filter_by(is_default=1).first().name
+
     def set_user_attribute(self, user_id: str, key: str, value: Any):
         if not self.check_if_user_exists(user_id):
             return None
