@@ -4,7 +4,8 @@ import os
 from datetime import datetime
 
 from sqlalchemy import Column, Integer, String, create_engine, DateTime, JSON, Text, ForeignKey
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from sqlalchemy.sql import text
 
 Base = declarative_base()
 
@@ -50,12 +51,18 @@ class Prompt(Base):
 
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
-db_file = f'sqlite:///{os.path.join(base_dir, "../db.sqlite")}'
+db_file = os.path.join(base_dir, '../db.sqlite')
+db_url = f'sqlite:///{os.path.join(base_dir, db_file)}'
 if not os.path.exists(db_file):
-    engine = create_engine(db_file, echo=False)
+    engine = create_engine(db_url, echo=False)
     Base.metadata.create_all(engine)
+    session = sessionmaker(bind=engine)()
+    session.execute(text("INSERT INTO ai_model (name) VALUES ('ChatGpt')"))
+    session.execute(text("INSERT INTO ai_model (name) VALUES ('PaLM2')"))
+    session.commit()
+    session.close()
 else:
-    engine = create_engine(db_file, echo=False)
+    engine = create_engine(db_url, echo=False)
 
 if __name__ == '__main__':
     Base.metadata.create_all(engine)

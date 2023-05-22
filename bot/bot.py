@@ -442,7 +442,10 @@ async def palm_handle(update, context):
     message = query.message.reply_to_message.text
     tip_message = await context.bot.send_message(text="I'm working on it, please wait...", disable_notification=True,
                                                  chat_id=query.message.chat_id, parse_mode=ParseMode.HTML)
-    tr_message = azure_service.translate(message)  # translate to english first
+    if re.search(r'[\u4e00-\u9fff]+', message):  # if have chinese word, then translate to english first
+        tr_message = azure_service.translate(message)
+    else:
+        tr_message = message
     answer = await palm_service.send_message(tr_message, dialog_messages=None)
     message_id = query.message.reply_to_message.message_id
     await tip_message.delete()
@@ -456,6 +459,13 @@ async def palm_handle(update, context):
                                        reply_to_message_id=answer_message.message_id, parse_mode=ParseMode.HTML)
         await answer_message.delete()
         return
+    user_id = update.callback_query.from_user.id
+    new_dialog_message = {"user": message, "assistant": answer,
+                          "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
+    db.set_dialog_messages(
+        user_id, db.get_dialog_messages(user_id, dialog_id=None, ai_model='PaLM2') + [new_dialog_message],
+        dialog_id=None, ai_model="PaLM2"
+    )
     translate_choice = [InlineKeyboardButton("请帮我翻译成中文󠁧󠁢󠁥󠁮󠁧󠁿", callback_data=f"translate|zh"),
                         InlineKeyboardButton("🗣 Read Aloud", callback_data=f"Read|en")
                         ]
@@ -492,9 +502,8 @@ async def chatgpt_handle(update, context):
     new_dialog_message = {"user": message, "assistant": answer,
                           "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
     db.set_dialog_messages(
-        user_id,
-        db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message],
-        dialog_id=None
+        user_id, db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message],
+        dialog_id=None, ai_model="ChatGpt"
     )
 
 
