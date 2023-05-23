@@ -2,7 +2,7 @@
 # coding:utf-8
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, DateTime, JSON, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, JSON, Text, ForeignKey, Boolean
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
@@ -38,8 +38,8 @@ class AiModel(Base):
     __tablename__ = 'ai_model'
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(64), nullable=False, unique=True)
-    is_default = Column(Integer, nullable=False, default=0, comment='1: default, 0: not default')
-    is_available = Column(Integer, nullable=False, default=1, comment='1: available, 0: not available')
+    is_default = Column(Boolean, nullable=False, default=False)
+    is_available = Column(Boolean, nullable=False, default=True)
 
 
 class Prompt(Base):

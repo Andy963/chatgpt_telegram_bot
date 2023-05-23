@@ -25,7 +25,7 @@ class Database:
         else:
             self.session.rollback()
         self.session.close()
-        self._engine.dispose()
+        # self._engine.dispose()
 
 
 class UserServices(Database):
@@ -157,10 +157,10 @@ class DialogServices(Database):
 
 class ModelServices(Database):
     def get_available_models(self):
-        return [m.name for m in self.session.query(AiModel).filter_by(is_available=1).all()]
+        return [m.name for m in self.session.query(AiModel).filter_by(is_available=True).all()]
 
     def get_default_model(self):
-        return self.session.query(AiModel).filter_by(is_default=1).first().name
+        return self.session.query(AiModel).filter_by(is_default=True).first().name
 
     def add_new_model(self, name: str, is_default: bool = False, is_available: bool = True):
         with self as session:
