@@ -189,9 +189,9 @@ class PromptServices(Database):
         return self.session.query(Prompt).filter_by(id=_id).first()
 
     def add_new_prompt(self, desc: str, prompt: str):
-        self.session.add(Prompt(**{'description': prompt, 'short_desc': desc}))
-        self.session.commit()
+        with self as session:
+            session.add(Prompt(**{'description': prompt, 'short_desc': desc}))
 
     def del_prompt(self, _id: int):
-        self.session.query(Prompt).filter_by(id=_id).delete()
-        self.session.commit()
+        with self as session:
+            session.query(Prompt).filter_by(id=_id).delete()

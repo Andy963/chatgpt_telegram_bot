@@ -6,7 +6,7 @@
 # Date: 2023/5/23
 # Copyright: 2023 Zhou
 # License:
-# Description: TODO
+# Description: Test dialog
 
 import unittest
 
