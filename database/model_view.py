@@ -1,28 +1,93 @@
 import uuid
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Optional, Any
 
 from sqlalchemy import desc
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import sessionmaker
 
-from .models import User, Dialog, engine, Prompt, AiModel
+from .models import User, Dialog, Prompt, AiModel
 
 
 class Database:
 
-    def __init__(self):
-        self.engine = engine
-        self.session = sessionmaker(bind=self.engine)()
+    def __init__(self, _engine):
+        self._engine = _engine
+        self.session = sessionmaker(bind=self._engine)()
 
+    def __enter__(self):
+        return self.session
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            self.session.commit()
+        else:
+            self.session.rollback()
+        self.session.close()
+        self._engine.dispose()
+
+
+class UserServices(Database):
     def check_if_user_exists(self, user_id: str):
+        """Check if user exists in database,
+        use cache to reduce database query
+        """
         return self.session.query(User).filter_by(user_id=user_id).count() > 0
 
+    @contextmanager
+    def user_context(self, user_id: str):
+        user = self.session.query(User).filter_by(user_id=user_id).first()
+        try:
+            yield user
+        finally:
+            pass
+
     def add_new_user(self, user_id: str, chat_id: int, username: str = "", first_name: str = "", last_name: str = ""):
+        """Add new user to database if not exists
+        """
         if not self.check_if_user_exists(user_id):
-            user = User(**{'user_id': user_id, 'chat_id': chat_id, 'username': username, 'first_name': first_name,
-                           'last_name': last_name})
-            self.session.add(user)
-            self.session.commit()
+            with self as session:
+                user = User(**{'user_id': user_id, 'chat_id': chat_id, 'username': username, 'first_name': first_name,
+                               'last_name': last_name})
+                session.add(user)
+        else:
+            raise Exception('user already exists')
+
+    def get_user_attribute(self, user_id: str, key: str):
+        """Do Not use check if user exists before calling this method or it query the database twice,
+        use try except instead
+        get user's attribute by key
+        """
+        try:
+            with self.user_context(user_id) as user:
+                if not hasattr(user, key):
+                    raise ValueError(f"User {user_id} does not have a value for {key}")
+                return getattr(user, key)
+        except NoResultFound:
+            return None
+
+    def set_user_attribute(self, user_id: str, key: str, value: Any):
+        """Do Not use check if user exists before calling this method or it query the database twice,
+                use try except instead
+                set user's attribute by key
+        """
+        try:
+            with self.user_context(user_id) as user:
+                with self as session:
+                    setattr(user, key, value)
+                    session.add(user)
+        except NoResultFound:
+            pass
+
+    def del_user(self, user_id: str):
+        """Delete user from database
+        """
+        with self as session:
+            session.query(User).filter_by(user_id=user_id).delete()
+
+
+class DialogServices(Database):
 
     def start_new_dialog(self, user_id: str, ai_model: str = "ChatGpt"):
         self.check_if_user_exists(user_id)
@@ -38,26 +103,6 @@ class Database:
 
         self.session.query(User).filter_by(user_id=user_id).update({'current_dialog_id': dialog_id})
         return dialog_id
-
-    def get_user_attribute(self, user_id: str, key: str):
-        if not self.check_if_user_exists(user_id):
-            return None
-        user = self.session.query(User).filter_by(user_id=user_id).first()
-        if not hasattr(user, key):
-            raise ValueError(f"User {user_id} does not have a value for {key}")
-        return getattr(user, key)
-
-    def get_available_models(self):
-        return [m.name for m in self.session.query(AiModel).filter_by(is_available=1).all()]
-
-    def get_default_model(self):
-        return self.session.query(AiModel).filter_by(is_default=1).first().name
-
-    def set_user_attribute(self, user_id: str, key: str, value: Any):
-        if not self.check_if_user_exists(user_id):
-            return None
-        self.session.query(User).filter_by(user_id=user_id).update({key: value})
-        self.session.commit()
 
     def get_dialog_messages(self, user_id: str, dialog_id: Optional[str] = None, ai_model: str = "ChatGpt"):
         if not self.check_if_user_exists(user_id):
@@ -108,6 +153,16 @@ class Database:
 
         self.session.commit()
 
+
+class ModelServices(Database):
+    def get_available_models(self):
+        return [m.name for m in self.session.query(AiModel).filter_by(is_available=1).all()]
+
+    def get_default_model(self):
+        return self.session.query(AiModel).filter_by(is_default=1).first().name
+
+
+class PromptServices(Database):
     def get_prompts(self):
         return self.session.query(Prompt).all()
 
@@ -121,10 +176,3 @@ class Database:
     def del_prompt(self, _id: int):
         self.session.query(Prompt).filter_by(id=_id).delete()
         self.session.commit()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.session.close()
-        self.engine.dispose()

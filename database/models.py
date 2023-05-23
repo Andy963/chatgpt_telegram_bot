@@ -1,11 +1,9 @@
 #!/usr/bin/python
 # coding:utf-8
-import os
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, create_engine, DateTime, JSON, Text, ForeignKey
-from sqlalchemy.orm import declarative_base, relationship, sessionmaker
-from sqlalchemy.sql import text
+from sqlalchemy import Column, Integer, String, DateTime, JSON, Text, ForeignKey
+from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
 
@@ -22,7 +20,6 @@ class User(Base):
     first_seen = Column(DateTime, nullable=False, default=datetime.now)
     current_dialog_id = Column(Integer, nullable=True, default=None)
     current_chat_mode = Column(String(64), nullable=True, default='assistant')
-    n_used_tokens = Column(Integer, nullable=False, default=0)
 
 
 class Dialog(Base):
@@ -50,22 +47,3 @@ class Prompt(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     short_desc = Column(String(64), nullable=False)
     description = Column(Text, nullable=False)
-
-
-base_dir = os.path.abspath(os.path.dirname(__file__))
-db_file = os.path.join(base_dir, '../db.sqlite')
-db_url = f'sqlite:///{os.path.join(base_dir, db_file)}'
-if not os.path.exists(db_file):
-    engine = create_engine(db_url, echo=False)
-    Base.metadata.create_all(engine)
-    session = sessionmaker(bind=engine)()
-    session.execute(text("INSERT INTO ai_model (name,is_default,is_available) VALUES ('ChatGpt',1,1)"))
-    session.execute(text("INSERT INTO ai_model (name,is_default,is_available) VALUES ('PaLM2',0,1)"))
-    session.commit()
-    session.close()
-else:
-    engine = create_engine(db_url, echo=False)
-
-if __name__ == '__main__':
-    Base.metadata.create_all(engine)
-    # Base.metadata.drop_all(engine)
