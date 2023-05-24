@@ -1,5 +1,4 @@
 import uuid
-from contextlib import contextmanager
 from datetime import datetime
 from typing import Optional, Any
 
@@ -35,14 +34,6 @@ class UserServices(Database):
         """
         return self.session.query(User).filter_by(user_id=user_id).count() > 0
 
-    @contextmanager
-    def user_context(self, user_id: str):
-        user = self.session.query(User).filter_by(user_id=user_id).first()
-        try:
-            yield user
-        finally:
-            pass
-
     def add_new_user(self, user_id: str, chat_id: int, username: str = "", first_name: str = "", last_name: str = ""):
         """Add new user to database if not exists
         """
@@ -60,10 +51,10 @@ class UserServices(Database):
         get user's attribute by key
         """
         try:
-            with self.user_context(user_id) as user:
-                if not hasattr(user, key):
-                    raise ValueError(f"User {user_id} does not have a value for {key}")
-                return getattr(user, key)
+            user = self.session.query(User).filter_by(user_id=user_id).first()
+            if not hasattr(user, key):
+                raise ValueError(f"User {user_id} does not have a value for {key}")
+            return getattr(user, key)
         except NoResultFound:
             return None
 
@@ -73,10 +64,10 @@ class UserServices(Database):
                 set user's attribute by key
         """
         try:
-            with self.user_context(user_id) as user:
-                with self as session:
-                    setattr(user, key, value)
-                    session.add(user)
+            user = self.session.query(User).filter_by(user_id=user_id).first()
+            with self as session:
+                setattr(user, key, value)
+                session.add(user)
         except NoResultFound:
             pass
 
@@ -89,17 +80,20 @@ class UserServices(Database):
 
 class DialogServices(Database):
 
-    def start_new_dialog(self, user_id: str, ai_model: str = "ChatGpt"):
+    def start_new_dialog(self, user_id: str):
         """Start a new dialog for user"""
         with self as session:
             user = session.query(User).filter_by(user_id=user_id).first()
-            dialog_id = str(uuid.uuid4())
-            ai_model_obj = session.query(AiModel).filter_by(name=ai_model).first()
-            dialog = Dialog(
-                **{'dialog_id': dialog_id, 'user_id': user_id, 'chat_mode': user.current_chat_mode,
-                   'start_time': datetime.now(), 'messages': [], "ai_model": ai_model_obj})
-            session.add(dialog)
-        return dialog_id
+            ai_models = session.query(AiModel).filter_by(is_available=True).all()
+            dialog_list = []
+            for ai in ai_models:
+                dialog = Dialog(
+                    **{'dialog_id': str(uuid.uuid4()), 'user_id': user_id, 'chat_mode': user.current_chat_mode,
+                       'start_time': datetime.now(), 'messages': [], "ai_model": ai})
+                dialog_list.append(dialog)
+            session.add_all(dialog_list)
+            default_model = session.query(AiModel).filter_by(is_default=True).first()
+            return session.query(Dialog).filter_by(user_id=user_id, ai_model=default_model).first()
 
     def get_dialog_messages(self, user_id: str, dialog_id: Optional[str] = None, ai_model: str = "ChatGpt"):
         """Get dialog messages for user"""
@@ -108,14 +102,13 @@ class DialogServices(Database):
         if dialog_id is None:
             dialog = self.session.query(Dialog).filter_by(user_id=user_obj.user_id, ai_model=ai_model_obj).order_by(
                 desc(Dialog.id)).first()
-            return dialog.messages
         else:
             dialog = self.session.query(Dialog).filter_by(user_id=user_obj.user_id, dialog_id=dialog_id,
                                                           ai_model=ai_model_obj).first()
-            if dialog is not None:
-                return dialog.messages
-            else:
-                return []
+        if dialog is not None:
+            return dialog.messages
+        else:
+            return []
 
     def get_real_dialog_id(self, user_id: str, dialog_id: int) -> int:
         """
@@ -133,26 +126,26 @@ class DialogServices(Database):
             dialog_id = dq.order_by(Dialog.start_time.desc())[dialog_id - 1].id
         return dialog_id
 
-    def set_dialog_messages(self, user_id: str, dialog_messages: list, dialog_id: Optional[str] = None,
+    def set_dialog_messages(self, user_id: str, dialog_messages: list,
                             ai_model: str = "ChatGpt"):
         ai_model_obj = self.session.query(AiModel).filter_by(name=ai_model).first()
-        if dialog_id is None:
-            dialog_id = self.session.query(User).filter_by(user_id=user_id).first().current_dialog_id
-            if dialog_id is None:
-                dialog_id = self.start_new_dialog(user_id)
-        dialog_obj = self.session.query(Dialog).filter_by(dialog_id=dialog_id).first()
-        if dialog_obj.ai_model != ai_model_obj:
-            # if the ai_model is different from the current one, then start a new dialog
+        user_obj = self.session.query(User).filter_by(user_id=user_id).first()
+        dialog_obj = self.session.query(Dialog).filter_by(user_id=user_id, ai_model=ai_model_obj).order_by(
+            desc(Dialog.id)).first()
+        if dialog_obj is None:
+            dialog_id = str(uuid.uuid4())
             new_dialog = Dialog(
-                **{'dialog_id': str(uuid.uuid4()), 'user_id': user_id, 'chat_mode': dialog_obj.chat_mode,
-                   'start_time': datetime.now()})
+                **{'dialog_id': dialog_id, 'user_id': user_id,
+                   'start_time': datetime.now(), 'messages': dialog_messages})
             new_dialog.ai_model = ai_model_obj
-            new_dialog.messages = dialog_messages
             self.session.add(new_dialog)
+            user_obj.current_dialog_id = dialog_id
+            self.session.add(user_obj)
         else:
             dialog_obj.messages = dialog_messages
-            dialog_obj.ai_model = ai_model_obj
-            self.session.add(dialog_obj)
+            self.session.merge(dialog_obj)
+
+        self.session.commit()
 
 
 class ModelServices(Database):

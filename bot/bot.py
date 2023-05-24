@@ -20,14 +20,14 @@ from telegram.ext import CallbackContext
 
 from ai import chatgpt, palm2
 from config import config
-from database.model_view import Database
+from database import engine
+from database.model_view import UserServices, DialogServices, ModelServices, PromptServices
 from logs.log import logger
 from .helper import send_like_tying, check_contain_code, render_msg_with_code, get_main_lang, AzureService, \
     num_tokens_from_string
 
 # setup
 
-db = Database()
 
 url_pattern = r'^http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
 HELP_MESSAGE = """Commands:
@@ -41,10 +41,15 @@ azure_service = AzureService()
 gpt_service = chatgpt.ChatGPT(model_name=config.openai_engine, use_stream=config.openai_response_streaming)
 palm_service = palm2.GooglePalm()
 
+user_db = UserServices(engine)
+dialog_db = DialogServices(engine)
+ai_model_db = ModelServices(engine)
+prompt_db = PromptServices(engine)
+
 
 async def register_user_if_not_exists(update: Update, context: CallbackContext, user: User):
-    if not db.check_if_user_exists(user.id):
-        db.add_new_user(
+    if not user_db.check_if_user_exists(user.id):
+        user_db.add_new_user(
             user.id,
             update.message.chat_id,
             username=user.username,
@@ -110,8 +115,9 @@ async def start_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
 
-    db.set_user_attribute(user_id, "last_interaction", datetime.now())
-    db.start_new_dialog(user_id)
+    user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
+
+    dialog_db.start_new_dialog(user_id)
 
     reply_text = "Hi! I'm <b>ChatGPT</b> bot implemented with GPT-3.5 OpenAI API 🤖\n\n"
     reply_text += HELP_MESSAGE
@@ -124,14 +130,14 @@ async def start_handle(update: Update, context: CallbackContext):
 async def help_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
-    db.set_user_attribute(user_id, "last_interaction", datetime.now())
+    user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
     await update.message.reply_text(HELP_MESSAGE, parse_mode=ParseMode.HTML)
 
 
 async def balance_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
-    db.set_user_attribute(user_id, "last_interaction", datetime.now())
+    user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
     if not config.openai_session_key:
         await update.message.reply_text("You have not set session key, can't check balance 🤷‍♂️")
         return
@@ -147,15 +153,15 @@ async def balance_handle(update: Update, context: CallbackContext):
 async def retry_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
-    db.set_user_attribute(user_id, "last_interaction", datetime.now())
+    user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
-    dialog_messages = db.get_dialog_messages(user_id, dialog_id=None)
+    dialog_messages = dialog_db.get_dialog_messages(user_id, dialog_id=None)
     if len(dialog_messages) == 0:
         await update.message.reply_text("No message to retry 🤷‍♂️")
         return
 
     last_dialog_message = dialog_messages.pop()
-    db.set_dialog_messages(user_id, dialog_messages, dialog_id=None)  # last message was removed from the context
+    dialog_db.set_dialog_messages(user_id, dialog_messages)  # last message was removed from the context
 
     await message_handle(update, context, message=last_dialog_message["user"], use_new_dialog_timeout=False)
 
@@ -172,18 +178,18 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
 
     # new dialog timeout
     if use_new_dialog_timeout:
-        if (datetime.now() - db.get_user_attribute(user_id, "last_interaction")).seconds > config.new_dialog_timeout:
-            db.start_new_dialog(user_id)
+        if (datetime.now() - user_db.get_user_attribute(user_id,
+                                                        "last_interaction")).seconds > config.new_dialog_timeout:
+            dialog_db.start_new_dialog(user_id=str(user_id), ai_model='ChatGpt')
             await update.message.reply_text("Starting new dialog due to timeout ⌛️")
-    db.set_user_attribute(user_id, "last_interaction", datetime.now())
-    message = message or update.message.text
+    user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
     try:
         # list all available models
         # use the default model to get answer
         # ask other models the same questions, but just save to the database
-        default_model = db.get_default_model()
-        available_models = db.get_available_models()
+        default_model = ai_model_db.get_default_model()
+        available_models = ai_model_db.get_available_models()
         other_models = [m for m in available_models if m != default_model]
         if default_model is None:
             await update.message.reply_text("Please set default model first")
@@ -192,8 +198,6 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         answer_handler = globals().get(handler_name)
         if answer_handler:
             await answer_handler(update, context, show_answer=True, other_models=other_models)
-
-        print(f"other_models: {other_models}")
         if other_models:
             for model in other_models:
                 handler_name = f"{model.lower()}_handle"
@@ -239,10 +243,9 @@ async def url_link_handle(update: Update, context: CallbackContext):
             await context.bot.send_message(text=answer, chat_id=query.message.chat_id, parse_mode=ParseMode.HTML)
             new_dialog_message = {"user": text, "assistant": answer,
                                   "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
-            db.set_dialog_messages(
+            dialog_db.set_dialog_messages(
                 user_id,
-                db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message],
-                dialog_id=None
+                dialog_db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message]
             )
     except Exception as e:
         logger.error(f'sth wrong with :{e}')
@@ -256,7 +259,7 @@ async def voice_message_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
 
     user_id = update.message.from_user.id
-    db.set_user_attribute(user_id, "last_interaction", datetime.now())
+    user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
     name = f"{update.message.chat_id}{int(time.time())}"
     logger.info(f'filename:{name}')
     try:
@@ -276,8 +279,8 @@ async def voice_message_handle(update: Update, context: CallbackContext):
             else:
                 await update.message.reply_text(text, parse_mode=ParseMode.HTML)
             answer, _ = gpt_service.send_message(
-                recognized_text, dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),
-                chat_mode=db.get_user_attribute(user_id, "current_chat_mode")
+                recognized_text, dialog_messages=dialog_db.get_dialog_messages(user_id, dialog_id=None),
+                chat_mode=user_db.get_user_attribute(user_id, "current_chat_mode")
             )
             logger.info(f'chatgpt answered: {answer}')
             if check_contain_code(answer):
@@ -296,10 +299,9 @@ async def voice_message_handle(update: Update, context: CallbackContext):
                                                     parse_mode=ParseMode.HTML)
             new_dialog_message = {"user": recognized_text, "assistant": answer,
                                   "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
-            db.set_dialog_messages(
+            dialog_db.set_dialog_messages(
                 user_id,
-                db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message],
-                dialog_id=None
+                dialog_db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message]
             )
 
     except Exception as e:
@@ -316,19 +318,19 @@ async def voice_message_handle(update: Update, context: CallbackContext):
 async def new_dialog_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
-    db.set_user_attribute(user_id, "last_interaction", datetime.now())
+    user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
-    db.start_new_dialog(user_id)
+    dialog_db.start_new_dialog(user_id)
     await update.message.reply_text("Starting new dialog ✅")
 
-    chat_mode = db.get_user_attribute(user_id, "current_chat_mode")
+    chat_mode = user_db.get_user_attribute(user_id, "current_chat_mode")
     await update.message.reply_text(f"{chatgpt.CHAT_MODES[chat_mode]['welcome_message']}", parse_mode=ParseMode.HTML)
 
 
 async def show_chat_modes_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
-    db.set_user_attribute(user_id, "last_interaction", datetime.now())
+    user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
     keyboard = []
     for chat_mode, chat_mode_dict in chatgpt.CHAT_MODES.items():
@@ -347,8 +349,8 @@ async def set_chat_mode_handle(update: Update, context: CallbackContext):
 
     chat_mode = query.data.split("|")[1]
 
-    db.set_user_attribute(user_id, "current_chat_mode", chat_mode)
-    db.start_new_dialog(user_id)
+    user_db.set_user_attribute(user_id, "current_chat_mode", chat_mode)
+    dialog_db.start_new_dialog(user_id)
 
     await query.edit_message_text(
         f"<b>{chatgpt.CHAT_MODES[chat_mode]['name']}</b> chat mode is set",
@@ -369,7 +371,7 @@ async def photo_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
 
     user_id = update.message.from_user.id
-    db.set_user_attribute(user_id, "last_interaction", datetime.now())
+    user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
     name = f"{update.message.chat_id}_{int(time.time())}.jpg"
     logger.info(f'filename:{name}')
     try:
@@ -425,7 +427,7 @@ async def ocr_handle(update: Update, context: CallbackContext):
             text = f"{text} Tell me a joke according to the text in {text_main_lang}."
 
         answer, _ = gpt_service.send_message(text, dialog_messages=[],
-                                             chat_mode=db.get_user_attribute(user_id, "current_chat_mode")
+                                             chat_mode=user_db.get_user_attribute(user_id, "current_chat_mode")
                                              )
         await tip_message.delete()
         if config.telegram_typing_effect:
@@ -436,7 +438,7 @@ async def ocr_handle(update: Update, context: CallbackContext):
         await query.message.reply_text("No text found in the picture", parse_mode=ParseMode.HTML)
 
 
-async def palm2_handle(update, context, show_answer=False):
+async def palm2_handle(update, context, show_answer=False, ai_model='PaLM2'):
     message = update.message.text
     if show_answer:
         tip_message = await context.bot.send_message(text="I'm working on it, please wait...",
@@ -447,7 +449,6 @@ async def palm2_handle(update, context, show_answer=False):
     else:
         tr_message = message
     answer = await palm_service.send_message(tr_message, dialog_messages=None)
-    print('palm2 answer', answer)
     message_id = update.message.message_id
     if show_answer:
         await tip_message.delete()
@@ -455,7 +456,7 @@ async def palm2_handle(update, context, show_answer=False):
                                                         chat_id=update.message.chat_id,
                                                         reply_to_message_id=message_id, parse_mode=ParseMode.HTML)
     # if palm return None, then stop
-    if show_answer and answer is None or str(answer).strip() == 'None':
+    if show_answer and (answer is None or str(answer).strip() == 'None'):
         await context.bot.send_message(text="⚠️ paLM2 returns None. Please try other model",
                                        chat_id=update.message.chat_id,
                                        reply_to_message_id=answer_message.message_id, parse_mode=ParseMode.HTML)
@@ -463,9 +464,9 @@ async def palm2_handle(update, context, show_answer=False):
     user_id = update.message.from_user.id
     new_dialog_message = {"user": message, "assistant": answer,
                           "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
-    db.set_dialog_messages(
-        user_id, db.get_dialog_messages(user_id, dialog_id=None, ai_model='PaLM2') + [new_dialog_message],
-        dialog_id=None, ai_model="PaLM2"
+    dialog_db.set_dialog_messages(
+        user_id, dialog_db.get_dialog_messages(user_id, dialog_id=None, ai_model=ai_model) + [new_dialog_message],
+        ai_model=ai_model
     )
     translate_choice = [InlineKeyboardButton("请帮我翻译成中文󠁧󠁢󠁥󠁮󠁧󠁿", callback_data=f"translate|zh"),
                         InlineKeyboardButton("🗣 Read Aloud", callback_data=f"Read|en")
@@ -505,8 +506,9 @@ async def chatgpt_handle(update, context, show_answer=False, other_models=None):
         tip_message = await context.bot.send_message(text="I'm working on it, please wait...",
                                                      disable_notification=True,
                                                      chat_id=update.message.chat_id, parse_mode=ParseMode.HTML)
-    answer, _ = gpt_service.send_message(message, dialog_messages=db.get_dialog_messages(user_id, dialog_id=None),
-                                         chat_mode=db.get_user_attribute(user_id, "current_chat_mode"), )
+    answer, _ = gpt_service.send_message(message,
+                                         dialog_messages=dialog_db.get_dialog_messages(user_id, dialog_id=None),
+                                         chat_mode=user_db.get_user_attribute(user_id, "current_chat_mode"), )
     message_id = update.message.message_id
     if show_answer:
         await tip_message.delete()
@@ -521,11 +523,8 @@ async def chatgpt_handle(update, context, show_answer=False, other_models=None):
                                            reply_markup=InlineKeyboardMarkup([btns]))
     new_dialog_message = {"user": message, "assistant": answer,
                           "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
-    print('gpt save message', new_dialog_message)
-    db.set_dialog_messages(
-        user_id, db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message],
-        dialog_id=None, ai_model="ChatGpt"
-    )
+    dialog_db.set_dialog_messages(
+        user_id, dialog_db.get_dialog_messages(user_id, ai_model='ChatGpt') + [new_dialog_message], ai_model="ChatGpt")
 
 
 async def translate_handle(update, context, lang):
@@ -543,7 +542,7 @@ async def translate_handle(update, context, lang):
 async def get_other_answer(update, context, model):
     """ get the answer from the database"""
     query = update.callback_query
-    dialog = db.get_dialog_messages(user_id=query.from_user.id, dialog_id=None, ai_model=model)
+    dialog = dialog_db.get_dialog_messages(user_id=query.from_user.id, dialog_id=None, ai_model=model)
     answer = dialog[-1]['assistant']
     if answer:
         await context.bot.send_message(text=f"<pre>{answer}</pre>", chat_id=query.message.chat_id,
@@ -596,7 +595,7 @@ async def error_handle(update: Update, context: CallbackContext) -> None:
 
 async def list_prompt_handle(update: Update, context: CallbackContext) -> None:
     """ list the prompt already exist"""
-    prompts = db.get_prompts()
+    prompts = prompt_db.get_prompts()
     if len(prompts) == 0:
         await update.message.reply_text("No prompt yet, please add one first.")
         return
@@ -613,7 +612,7 @@ async def new_prompt_handle(update: Update, context: CallbackContext):
     try:
         _, data = update.message.text.split(" ", 1)
         short_desc, prompt = data.split('|')
-        db.add_new_prompt(short_desc, prompt)
+        prompt_db.add_new_prompt(short_desc, prompt)
         await update.message.reply_text(f"Prompt ({short_desc}) added successfully.")
     except ValueError as ve:
         logger.error(ve)
@@ -624,7 +623,7 @@ async def del_prompt_handle(update: Update, context: CallbackContext):
     """delete a prompt"""
     try:
         prompt_id = update.message.text.split(" ")[1]
-        db.del_prompt(prompt_id)
+        prompt_db.del_prompt(prompt_id)
         await update.message.reply_text(f"Prompt ({prompt_id}) deleted successfully.")
     except ValueError as ve:
         logger.error(ve)
@@ -635,7 +634,7 @@ async def prompt_handle(update: Update, context: CallbackContext):
     """handle prompt callback query"""
     query = update.callback_query
     prompt_id = query.data.split("|")[1]
-    prompt = db.get_prompt(int(prompt_id))
+    prompt = prompt_db.get_prompt(int(prompt_id))
     if prompt:
         tip_message = await query.message.reply_text("I'm thinking...")
         answer, _ = gpt_service.send_message(prompt.description, dialog_messages=[], chat_mode='assistant')
@@ -657,7 +656,7 @@ async def export_handle(update: Update, context: CallbackContext):
     """
     await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
-    db.set_user_attribute(user_id, "last_interaction", datetime.now())
+    user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
     dialog_id = None
     if ' ' in update.message.text:
         _, dialog_id = update.message.text.split(" ", 1)
@@ -671,8 +670,8 @@ async def export_handle(update: Update, context: CallbackContext):
         else:
             await update.message.reply_text("Invalid dialog id.")
 
-    dialog_id = db.get_real_dialog_id(str(user_id), dialog_id)
-    messages = db.get_dialog_messages(str(user_id), dialog_id)
+    dialog_id = dialog_db.get_real_dialog_id(str(user_id), dialog_id)
+    messages = dialog_db.get_dialog_messages(str(user_id), dialog_id)
     if messages:
         with open('messages.txt', 'w') as f:
             for msg in messages:

@@ -69,7 +69,7 @@ class ChatGPT:
 
     async def send_message_stream(self, message, dialog_messages=None, chat_mode='assistant'):
         """
-        use stream  mode to get answer from openai
+        use stream  mode to get answer from openai, deprecated bcz it's bad to for read in telegram
         :param message: [message you want to send to openai ]
         :param dialog_messages: [message list]
         :param chat_mode: ['assistant', 'code_assistant', 'text_improver', 'movie_expert']
