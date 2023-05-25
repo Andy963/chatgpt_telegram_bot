@@ -18,13 +18,11 @@ from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
 
-from ai import chatgpt, palm2
+from ai import chatgpt
 from config import config
-from database import engine
-from database.model_view import UserServices, DialogServices, ModelServices, PromptServices
 from logs.log import logger
-from .helper import send_like_tying, check_contain_code, render_msg_with_code, get_main_lang, AzureService, \
-    num_tokens_from_string
+from . import user_db, azure_service, dialog_db, gpt_service, ai_model_db, prompt_db, palm_service
+from .helper import send_like_tying, check_contain_code, render_msg_with_code, get_main_lang, num_tokens_from_string
 
 # setup
 
@@ -36,15 +34,6 @@ HELP_MESSAGE = """Commands:
 ⚪ /mode – Select chat mode
 ⚪ /help – Show help
 """
-
-azure_service = AzureService()
-gpt_service = chatgpt.ChatGPT(model_name=config.openai_engine, use_stream=config.openai_response_streaming)
-palm_service = palm2.GooglePalm()
-
-user_db = UserServices(engine)
-dialog_db = DialogServices(engine)
-ai_model_db = ModelServices(engine)
-prompt_db = PromptServices(engine)
 
 
 async def register_user_if_not_exists(update: Update, context: CallbackContext, user: User):
@@ -180,7 +169,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
     if use_new_dialog_timeout:
         if (datetime.now() - user_db.get_user_attribute(user_id,
                                                         "last_interaction")).seconds > config.new_dialog_timeout:
-            dialog_db.start_new_dialog(user_id=str(user_id), ai_model='ChatGpt')
+            dialog_db.start_new_dialog(user_id=str(user_id))
             await update.message.reply_text("Starting new dialog due to timeout ⌛️")
     user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
@@ -258,7 +247,7 @@ async def voice_message_handle(update: Update, context: CallbackContext):
     logger.info('voice message handler:')
     await register_user_if_not_exists(update, context, update.message.from_user)
 
-    user_id = update.message.from_user.id
+    user_id = str(update.message.from_user.id)
     user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
     name = f"{update.message.chat_id}{int(time.time())}"
     logger.info(f'filename:{name}')
@@ -299,10 +288,9 @@ async def voice_message_handle(update: Update, context: CallbackContext):
                                                     parse_mode=ParseMode.HTML)
             new_dialog_message = {"user": recognized_text, "assistant": answer,
                                   "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
-            dialog_db.set_dialog_messages(
-                user_id,
-                dialog_db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message]
-            )
+            dialog_db.set_dialog_messages(user_id,
+                                          dialog_db.get_dialog_messages(user_id, dialog_id=None) + [new_dialog_message]
+                                          )
 
     except Exception as e:
         error_text = f"Sth went wrong: {e}"
@@ -317,7 +305,7 @@ async def voice_message_handle(update: Update, context: CallbackContext):
 
 async def new_dialog_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
-    user_id = update.message.from_user.id
+    user_id = str(update.message.from_user.id)
     user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
     dialog_db.start_new_dialog(user_id)
@@ -329,7 +317,7 @@ async def new_dialog_handle(update: Update, context: CallbackContext):
 
 async def show_chat_modes_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
-    user_id = update.message.from_user.id
+    user_id = str(update.message.from_user.id)
     user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
     keyboard = []
@@ -341,8 +329,8 @@ async def show_chat_modes_handle(update: Update, context: CallbackContext):
 
 
 async def set_chat_mode_handle(update: Update, context: CallbackContext):
-    await register_user_if_not_exists(update.callback_query, context, update.callback_query.from_user)
-    user_id = update.callback_query.from_user.id
+    await register_user_if_not_exists(update, context, update.callback_query.from_user)
+    user_id = str(update.callback_query.from_user.id)
 
     query = update.callback_query
     await query.answer()
@@ -370,7 +358,7 @@ async def photo_handle(update: Update, context: CallbackContext):
 
     await register_user_if_not_exists(update, context, update.message.from_user)
 
-    user_id = update.message.from_user.id
+    user_id = str(update.message.from_user.id)
     user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
     name = f"{update.message.chat_id}_{int(time.time())}.jpg"
     logger.info(f'filename:{name}')
@@ -395,7 +383,7 @@ async def photo_handle(update: Update, context: CallbackContext):
 
 async def ocr_handle(update: Update, context: CallbackContext):
     """Handle ocr callback query"""
-    user_id = update.callback_query.from_user.id
+    user_id = str(update.callback_query.from_user.id)
     query = update.callback_query
     tip_message = await context.bot.send_message(
         text="I'm working on it, please wait...", chat_id=query.message.chat_id,
