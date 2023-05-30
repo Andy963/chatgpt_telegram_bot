@@ -173,6 +173,9 @@ class ModelServices(Database):
     def get_model(self, name: str):
         return self.session.query(AiModel).filter_by(name=name).first()
 
+    def list_all_model(self):
+        return self.session.query(AiModel).filter_by(is_availabel=True).all()
+
 
 class PromptServices(Database):
     def get_prompts(self):

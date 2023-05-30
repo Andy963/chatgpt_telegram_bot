@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # coding:utf-8
 import logging
+import os
 from logging import handlers
 
 from config import config
@@ -51,6 +52,11 @@ class FileSplitLogger:
         return self.logger
 
 
-logger = FileSplitLogger(filename=config.log, level='debug', to_stream=False)()
+fs = FileSplitLogger(filename=config.log, level='debug', to_stream=True)
+logger = fs()
+if os.environ.get('is_console'):
+    logger.removeHandler(logger.handlers[1])  # 移除流输出handler
+else:
+    logger.removeHandler(logger.handlers[0])  # 移除文件handler
 if __name__ == '__main__':
     logger = FileSplitLogger('./test.log', 'debug', max_bytes=100, )()

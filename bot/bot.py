@@ -1,5 +1,4 @@
 import html
-import html
 import json
 import math
 import random
@@ -579,6 +578,38 @@ async def error_handle(update: Update, context: CallbackContext) -> None:
             await context.bot.send_message(update.effective_chat.id, message_chunk, parse_mode=ParseMode.HTML)
     except Exception as e:
         await context.bot.send_message(update.effective_chat.id, "Some error in error handler")
+
+
+async def list_ai_model_handle(update: Update, context: CallbackContext):
+    """ list the ai model"""
+    models = ai_model_db.list_all_model()
+    if len(models) == 0:
+        await update.message.reply_text("No models yet, please add one first.")
+        return
+    text = "Here are the models:\n"
+
+    btns = InlineKeyboardMarkup([[InlineKeyboardButton(
+        f"{md.id} {md.name}", callback_data=f'model|{md.id}')] for md in models])
+    await update.message.reply_text(text, reply_to_message_id=update.message.message_id,
+                                    reply_markup=btns, parse_mode=ParseMode.HTML)
+
+
+async def set_default_ai_model_handle(update: Update, context: CallbackContext):
+    """ set the default ai model"""
+    await register_user_if_not_exists(update, context, update.callback_query.from_user)
+    user_id = str(update.callback_query.from_user.id)
+
+    query = update.callback_query
+    await query.answer()
+
+    # remove the default flag from the old default model
+    df_model = ai_model_db.get_default_model()
+    if df_model:
+        ai_model_db.update_model(df_model.name, is_default=False)
+    ai_name = query.data.split("|")[1]
+    ai_model_db.update_model(ai_name, is_default=True)
+
+    await query.message.reply_text(f"Set {ai_name} as default model success.")
 
 
 async def list_prompt_handle(update: Update, context: CallbackContext) -> None:
