@@ -2,7 +2,7 @@
 # coding:utf-8
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, DateTime, JSON, Text, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, JSON, Text, ForeignKey, Boolean, CheckConstraint
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
@@ -40,6 +40,10 @@ class AiModel(Base):
     name = Column(String(64), nullable=False, unique=True)
     is_default = Column(Boolean, nullable=False, default=False)
     is_available = Column(Boolean, nullable=False, default=True)
+
+    table_args = [
+        CheckConstraint('(SELECT COUNT(*) FROM ai_model WHERE is_default = 1) <= 1')
+    ]
 
 
 class Prompt(Base):

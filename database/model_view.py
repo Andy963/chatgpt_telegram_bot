@@ -153,7 +153,7 @@ class ModelServices(Database):
         return [m.name for m in self.session.query(AiModel).filter_by(is_available=True).all()]
 
     def get_default_model(self):
-        return self.session.query(AiModel).filter_by(is_default=True).first().name
+        return self.session.query(AiModel).filter_by(is_default=True).first()
 
     def add_new_model(self, name: str, is_default: bool = False, is_available: bool = True):
         with self as session:
@@ -174,7 +174,7 @@ class ModelServices(Database):
         return self.session.query(AiModel).filter_by(name=name).first()
 
     def list_all_model(self):
-        return self.session.query(AiModel).filter_by(is_availabel=True).all()
+        return self.session.query(AiModel).filter_by(is_available=True).all()
 
 
 class PromptServices(Database):

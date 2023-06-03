@@ -178,20 +178,21 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         # ask other models the same questions, but just save to the database
         default_model = ai_model_db.get_default_model()
         available_models = ai_model_db.get_available_models()
-        other_models = [m for m in available_models if m != default_model]
+        other_models = [m for m in available_models if m != default_model.name]
         if default_model is None:
             await update.message.reply_text("Please set default model first")
             return
-        handler_name = f"{default_model.lower()}_handle"
+        handler_name = f"{default_model.name.lower()}_handle"
         answer_handler = globals().get(handler_name)
         if answer_handler:
             await answer_handler(update, context, show_answer=True, other_models=other_models)
-        if other_models:
-            for model in other_models:
-                handler_name = f"{model.lower()}_handle"
-                handler = globals().get(handler_name)
-                if handler:
-                    await handler(update, context)
+        # FIXME
+        # if other_models:
+        #     for model in other_models:
+        #         handler_name = f"{model.lower()}_handle"
+        #         handler = globals().get(handler_name)
+        #         if handler:
+        #             await handler(update, context)
     except Exception as e:
         error_text = f"Sth went wrong: {e}"
         logger.error(f" error stack: {traceback.format_exc()}")
@@ -425,7 +426,7 @@ async def ocr_handle(update: Update, context: CallbackContext):
         await query.message.reply_text("No text found in the picture", parse_mode=ParseMode.HTML)
 
 
-async def palm2_handle(update, context, show_answer=False, ai_model='PaLM2'):
+async def palm2_handle(update, context, show_answer=False, ai_model='PaLM2', other_models=None):
     message = update.message.text
     if show_answer:
         tip_message = await context.bot.send_message(text="I'm working on it, please wait...",
@@ -442,6 +443,12 @@ async def palm2_handle(update, context, show_answer=False, ai_model='PaLM2'):
         answer_message = await context.bot.send_message(text=f"🗣:\n\nASK: {tr_message}\n\n<pre>{answer}</pre>",
                                                         chat_id=update.message.chat_id,
                                                         reply_to_message_id=message_id, parse_mode=ParseMode.HTML)
+        if other_models:
+            btns = [InlineKeyboardButton(f"{model}", callback_data=f"get_other_model|{model}") for model in
+                    other_models]
+            await context.bot.send_message(text="try other models", chat_id=update.message.chat_id,
+                                           reply_to_message_id=message_id, parse_mode=ParseMode.HTML,
+                                           reply_markup=InlineKeyboardMarkup([btns]))
     # if palm return None, then stop
     if show_answer and (answer is None or str(answer).strip() == 'None'):
         await context.bot.send_message(text="⚠️ paLM2 returns None. Please try other model",
@@ -587,29 +594,27 @@ async def list_ai_model_handle(update: Update, context: CallbackContext):
         await update.message.reply_text("No models yet, please add one first.")
         return
     text = "Here are the models:\n"
+    print([(md.name, md.is_default) for md in models])
 
     btns = InlineKeyboardMarkup([[InlineKeyboardButton(
-        f"{md.id} {md.name}", callback_data=f'model|{md.id}')] for md in models])
+        f"{md.id} {md.name}{('*' if md.is_default else '')}", callback_data=f'model|{md.id}')] for md in models])
     await update.message.reply_text(text, reply_to_message_id=update.message.message_id,
                                     reply_markup=btns, parse_mode=ParseMode.HTML)
 
 
 async def set_default_ai_model_handle(update: Update, context: CallbackContext):
     """ set the default ai model"""
-    await register_user_if_not_exists(update, context, update.callback_query.from_user)
-    user_id = str(update.callback_query.from_user.id)
-
-    query = update.callback_query
-    await query.answer()
+    await register_user_if_not_exists(update, context, update.message.from_user)
+    user_id = str(update.message.from_user.id)
 
     # remove the default flag from the old default model
     df_model = ai_model_db.get_default_model()
     if df_model:
         ai_model_db.update_model(df_model.name, is_default=False)
-    ai_name = query.data.split("|")[1]
+    ai_name = update.message.text.split(" ")[1]
     ai_model_db.update_model(ai_name, is_default=True)
 
-    await query.message.reply_text(f"Set {ai_name} as default model success.")
+    await update.message.reply_text(f"Set {ai_name} as default model success.")
 
 
 async def list_prompt_handle(update: Update, context: CallbackContext) -> None:
