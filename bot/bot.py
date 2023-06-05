@@ -20,7 +20,7 @@ from telegram.ext import CallbackContext
 from ai import chatgpt
 from config import config
 from logs.log import logger
-from . import user_db, azure_service, dialog_db, gpt_service, ai_model_db, prompt_db, palm_service
+from . import user_db, azure_service, dialog_db, gpt_service, ai_model_db, prompt_db, palm_service, azure_openai_service
 from .helper import send_like_tying, check_contain_code, render_msg_with_code, get_main_lang, num_tokens_from_string
 
 # setup
@@ -182,17 +182,30 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         if default_model is None:
             await update.message.reply_text("Please set default model first")
             return
-        handler_name = f"{default_model.name.lower()}_handle"
-        answer_handler = globals().get(handler_name)
-        if answer_handler:
-            await answer_handler(update, context, show_answer=True, other_models=other_models)
-        # FIXME
-        # if other_models:
-        #     for model in other_models:
-        #         handler_name = f"{model.lower()}_handle"
-        #         handler = globals().get(handler_name)
-        #         if handler:
-        #             await handler(update, context)
+        message = update.message.text
+        tip_message = await context.bot.send_message(text="I'm working on it, please wait...",
+                                                     disable_notification=True,
+                                                     chat_id=update.message.chat_id, parse_mode=ParseMode.HTML)
+        context_msg = dialog_db.get_dialog_messages(user_id, dialog_id=None)
+        answer = await get_answer_from_ai(default_model.name, message, context=context_msg)
+        message_id = update.message.message_id
+        await tip_message.delete()
+        answer_msg = await context.bot.send_message(text=f"🗣\n\n<pre>{answer}</pre>", chat_id=update.message.chat_id,
+                                                    reply_to_message_id=message_id, parse_mode=ParseMode.HTML)
+        if not re.search(r'[\u4e00-\u9fff]+', message):
+            translate_choice = [InlineKeyboardButton("请帮我翻译成中文󠁧󠁢󠁥󠁮󠁧󠁿", callback_data=f"translate|zh"),
+                                InlineKeyboardButton("🗣 Read Aloud", callback_data=f"Read|en")
+                                ]
+            await context.bot.send_message(text='🆘 英文太难？懒得看？',
+                                           reply_markup=InlineKeyboardMarkup([translate_choice]),
+                                           chat_id=update.message.chat_id,
+                                           reply_to_message_id=answer_msg.message_id, parse_mode=ParseMode.HTML)
+        new_dialog_message = {"user": message, "assistant": answer,
+                              "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
+        dialog_db.set_dialog_messages(
+            user_id, dialog_db.get_dialog_messages(user_id, ai_model='ChatGpt') + [new_dialog_message],
+            ai_model="ChatGpt")
+
     except Exception as e:
         error_text = f"Sth went wrong: {e}"
         logger.error(f" error stack: {traceback.format_exc()}")
@@ -241,6 +254,20 @@ async def url_link_handle(update: Update, context: CallbackContext):
         logger.error(f"traceback {traceback.format_exc()}")
         await context.bot.send_message(text='sth wrong while solving the html', chat_id=query.message.chat_id,
                                        parse_mode=ParseMode.HTML)
+
+
+async def get_answer_from_ai(ai_name: str, message: str, context: list):
+    """Get answer from ai model. no matter chatgpt or azure openai, or palm2 etc."""
+    answer = None
+    ai_name = ai_name.lower()
+    if 'chatgpt' in ai_name:
+        answer = await gpt_service.send_message(message, context)
+    elif 'azure_openai' in ai_name:
+        answer = await azure_openai_service.send_message(message, context)
+    elif 'palm2' in ai_name:
+        message = azure_service.translate(message)
+        answer = await palm_service.send_message(message, context)
+    return answer
 
 
 async def voice_message_handle(update: Update, context: CallbackContext):
@@ -426,51 +453,6 @@ async def ocr_handle(update: Update, context: CallbackContext):
         await query.message.reply_text("No text found in the picture", parse_mode=ParseMode.HTML)
 
 
-async def palm2_handle(update, context, show_answer=False, ai_model='PaLM2', other_models=None):
-    message = update.message.text
-    if show_answer:
-        tip_message = await context.bot.send_message(text="I'm working on it, please wait...",
-                                                     disable_notification=True,
-                                                     chat_id=update.message.chat_id, parse_mode=ParseMode.HTML)
-    if re.search(r'[\u4e00-\u9fff]+', message):  # if have chinese word, then translate to english first
-        tr_message = azure_service.translate(message)
-    else:
-        tr_message = message
-    answer = await palm_service.send_message(tr_message, dialog_messages=None)
-    message_id = update.message.message_id
-    if show_answer:
-        await tip_message.delete()
-        answer_message = await context.bot.send_message(text=f"🗣:\n\nASK: {tr_message}\n\n<pre>{answer}</pre>",
-                                                        chat_id=update.message.chat_id,
-                                                        reply_to_message_id=message_id, parse_mode=ParseMode.HTML)
-        if other_models:
-            btns = [InlineKeyboardButton(f"{model}", callback_data=f"get_other_model|{model}") for model in
-                    other_models]
-            await context.bot.send_message(text="try other models", chat_id=update.message.chat_id,
-                                           reply_to_message_id=message_id, parse_mode=ParseMode.HTML,
-                                           reply_markup=InlineKeyboardMarkup([btns]))
-    # if palm return None, then stop
-    if show_answer and (answer is None or str(answer).strip() == 'None'):
-        await context.bot.send_message(text="⚠️ paLM2 returns None. Please try other model",
-                                       chat_id=update.message.chat_id,
-                                       reply_to_message_id=answer_message.message_id, parse_mode=ParseMode.HTML)
-        await answer_message.delete()
-    user_id = update.message.from_user.id
-    new_dialog_message = {"user": message, "assistant": answer,
-                          "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
-    dialog_db.set_dialog_messages(
-        user_id, dialog_db.get_dialog_messages(user_id, dialog_id=None, ai_model=ai_model) + [new_dialog_message],
-        ai_model=ai_model
-    )
-    translate_choice = [InlineKeyboardButton("请帮我翻译成中文󠁧󠁢󠁥󠁮󠁧󠁿", callback_data=f"translate|zh"),
-                        InlineKeyboardButton("🗣 Read Aloud", callback_data=f"Read|en")
-                        ]
-    if show_answer:
-        await context.bot.send_message(text='🆘 英文太难？懒得看？', reply_markup=InlineKeyboardMarkup([translate_choice]),
-                                       chat_id=update.message.chat_id,
-                                       reply_to_message_id=answer_message.message_id, parse_mode=ParseMode.HTML)
-
-
 async def read_handle(update, context):
     """将答案读出来，azure text2speech"""
     query = update.callback_query
@@ -482,43 +464,6 @@ async def read_handle(update, context):
         return
     message = query.message.reply_to_message.text
     await reply_voice(update, context, message)
-
-
-async def chatgpt_handle(update, context, show_answer=False, other_models=None):
-    """
-
-    :param update:
-    :param context:
-    :param show_answer:
-    if has other model
-    1. show buttons below the answer
-    2. callback to get the answer from the database
-    """
-    user_id = update.message.from_user.id
-    message = update.message.text
-    if show_answer:
-        tip_message = await context.bot.send_message(text="I'm working on it, please wait...",
-                                                     disable_notification=True,
-                                                     chat_id=update.message.chat_id, parse_mode=ParseMode.HTML)
-    answer, _ = gpt_service.send_message(message,
-                                         dialog_messages=dialog_db.get_dialog_messages(user_id, dialog_id=None),
-                                         chat_mode=user_db.get_user_attribute(user_id, "current_chat_mode"), )
-    message_id = update.message.message_id
-    if show_answer:
-        await tip_message.delete()
-        await context.bot.send_message(text=f"🗣\n\n<pre>{answer}</pre>", chat_id=update.message.chat_id,
-                                       reply_to_message_id=message_id, parse_mode=ParseMode.HTML)
-        #
-        if other_models:
-            btns = [InlineKeyboardButton(f"{model}", callback_data=f"get_other_model|{model}") for model in
-                    other_models]
-            await context.bot.send_message(text="try other models", chat_id=update.message.chat_id,
-                                           reply_to_message_id=message_id, parse_mode=ParseMode.HTML,
-                                           reply_markup=InlineKeyboardMarkup([btns]))
-    new_dialog_message = {"user": message, "assistant": answer,
-                          "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s")}
-    dialog_db.set_dialog_messages(
-        user_id, dialog_db.get_dialog_messages(user_id, ai_model='ChatGpt') + [new_dialog_message], ai_model="ChatGpt")
 
 
 async def translate_handle(update, context, lang):

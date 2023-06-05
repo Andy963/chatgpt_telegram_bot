@@ -12,7 +12,8 @@ You can deploy your own bot
 - multi language voice message support (azure TTS)
 - picture ocr and translate, summary, tell story joke etc.
 - parse a url link(only summary the text for now)
-- paLM2 support(use azure translate to en and ask palm2)
+- paLM2 support(use azure translate to en and ask palm2, palm2 translate is so weak)
+- azure openai support
 
 ### Bot commands
 
@@ -22,10 +23,12 @@ You can deploy your own bot
 - `/help` – Show help
 - `/balance` – Check your OpenAI balance (session key required)
 - `/lp` – List prompts (np, lp, dp: add new prompt, list prompt, del prompt with id)
+- `/lm` - List all ai model (chatgpt, palm2, azure_openai etc.)
+- `/sm` -- set default ai model
 
 ### Setup
 
-1. Get your [OpenAI API](https://openai.com/api/) or paLM2 key
+1. Get your [OpenAI API](https://openai.com/api/) or paLM2 key, or azure openai key.
 
 2. Get your Telegram bot token from [@BotFather](https://t.me/BotFather)
 
@@ -61,6 +64,7 @@ TODO:
   from sources.
 - [x] change default model
 - [ ] get the latest new and summarize and send to user on schedule (maybe with voice)
+- [x] azure openai support
 
 ```shell
 

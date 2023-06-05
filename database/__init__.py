@@ -22,6 +22,7 @@ if not os.path.exists(db_file):
     session = sessionmaker(bind=engine)()
     session.execute(text("INSERT INTO ai_model (name,is_default,is_available) VALUES ('ChatGpt',1,1)"))
     session.execute(text("INSERT INTO ai_model (name,is_default,is_available) VALUES ('PaLM2',0,1)"))
+    session.execute(text("INSERT INTO ai_model (name,is_default,is_available) VALUES ('Azure_openai',0,1)"))
     session.commit()
     session.close()
 else:

@@ -103,7 +103,7 @@ class ChatGPT:
 
         yield "finished", answer, n_first_dialog_messages_removed  # sending final answer
 
-    def send_message(self, message, dialog_messages=None, chat_mode="assistant"):
+    async def send_message(self, message, dialog_messages=None, chat_mode="assistant"):
         """
         Send message to ask openai, same as send_message_stream, but not use stream mode
         """
@@ -126,9 +126,8 @@ class ChatGPT:
                 # forget first message in dialog_messages
                 elif len(dialog_messages) >= 20:
                     dialog_messages = dialog_messages[1:]
-        n_first_dialog_messages_removed = n_dialog_messages_before - len(dialog_messages)
 
-        return answer, n_first_dialog_messages_removed
+        return answer
 
     @staticmethod
     def _generate_msg(message, dialog_messages, chat_mode):

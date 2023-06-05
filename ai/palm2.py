@@ -9,18 +9,31 @@
 # Description:  google paLM2 service
 import google.generativeai as palm
 
-from bot.helper import AzureService
 from config import config
 
 palm.configure(api_key=config.palm_api_key)
-
-azure_service = AzureService()
 
 
 class GooglePalm:
 
     def __init__(self, model_name='models/chat-bison-001'):
         self.model = model_name
+
+    async def en2zh(self, message):
+        """translate english to chinese
+        it's weak for now
+        """
+        prompt = f"Please translate the following sentence into Chinese(return the translated sentence only): {message}"
+        rsp = palm.generate_text(prompt=prompt)
+        return rsp.result
+
+    async def zh2en(self, message):
+        """translate chinese to english
+        it's weak for now
+        """
+        prompt = f"Please translate the following sentence into english(return the translated sentence only): '{message}'"
+        rsp = palm.generate_text(prompt=prompt)
+        return rsp.result
 
     async def send_message(self, message, dialog_messages=None, examples=None):
         """send message to palm
