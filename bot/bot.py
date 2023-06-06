@@ -32,6 +32,13 @@ HELP_MESSAGE = """Commands:
 ⚪ /new – Start new dialog
 ⚪ /mode – Select chat mode
 ⚪ /help – Show help
+⚪ /balance – for gpt(session key required)
+⚪ /np   – new prompt
+⚪ /lp   – List prompts
+⚪ /lm   – List ai models 
+⚪ /export   – export history
+
+ 
 """
 
 
@@ -506,6 +513,8 @@ async def dispatch_callback_handle(update: Update, context: CallbackContext):
         await url_link_handle(update, context)
     elif query.data.startswith('prompt'):
         await prompt_handle(update, context)
+    elif query.data.startswith('setModel'):
+        await set_default_ai_model_handle(update, context)
 
 
 async def error_handle(update: Update, context: CallbackContext) -> None:
@@ -538,28 +547,27 @@ async def list_ai_model_handle(update: Update, context: CallbackContext):
     if len(models) == 0:
         await update.message.reply_text("No models yet, please add one first.")
         return
-    text = "Here are the models:\n"
-    print([(md.name, md.is_default) for md in models])
+    text = "List All AI models \nHere are the available models (Click to change default model):\n"
 
     btns = InlineKeyboardMarkup([[InlineKeyboardButton(
-        f"{md.id} {md.name}{('*' if md.is_default else '')}", callback_data=f'model|{md.id}')] for md in models])
+        f"{md.name} {'(default)' if md.is_default else ''}", callback_data=f'setModel|{md.name}')] for md in
+        models])
     await update.message.reply_text(text, reply_to_message_id=update.message.message_id,
                                     reply_markup=btns, parse_mode=ParseMode.HTML)
 
 
 async def set_default_ai_model_handle(update: Update, context: CallbackContext):
     """ set the default ai model"""
-    await register_user_if_not_exists(update, context, update.message.from_user)
-    user_id = str(update.message.from_user.id)
-
+    await register_user_if_not_exists(update, context, update.callback_query.from_user)
     # remove the default flag from the old default model
     df_model = ai_model_db.get_default_model()
     if df_model:
         ai_model_db.update_model(df_model.name, is_default=False)
-    ai_name = update.message.text.split(" ")[1]
+    ai_name = update.callback_query.data.split("|")[1]
     ai_model_db.update_model(ai_name, is_default=True)
 
-    await update.message.reply_text(f"Set {ai_name} as default model success.")
+    await context.bot.send_message(update.callback_query.message.chat_id,
+                                   f"Set <b>{ai_name}</b> as default model success.", parse_mode=ParseMode.HTML)
 
 
 async def list_prompt_handle(update: Update, context: CallbackContext) -> None:

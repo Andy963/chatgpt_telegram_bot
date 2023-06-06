@@ -38,7 +38,6 @@ def run_bot() -> None:
     application.add_handler(CommandHandler("lp", list_prompt_handle, filters=user_filter))
     application.add_handler(CommandHandler("dp", del_prompt_handle, filters=user_filter))
     application.add_handler(CommandHandler("lm", list_ai_model_handle, filters=user_filter))
-    application.add_handler(CommandHandler("sm", set_default_ai_model_handle, filters=user_filter))
     application.add_handler(CommandHandler("mode", show_chat_modes_handle, filters=user_filter))
     application.add_handler(CommandHandler("export", export_handle, filters=user_filter))
     application.add_handler(CallbackQueryHandler(set_chat_mode_handle, pattern="^set_chat_mode"))
