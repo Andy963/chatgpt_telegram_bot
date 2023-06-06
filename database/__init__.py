@@ -5,6 +5,7 @@ import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
+from config import config
 from database.models import Base
 
 # File: __init__.py.py
@@ -20,9 +21,10 @@ if not os.path.exists(db_file):
     engine = create_engine(db_url, echo=False)
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
-    session.execute(text("INSERT INTO ai_model (name,is_default,is_available) VALUES ('ChatGpt',1,1)"))
-    session.execute(text("INSERT INTO ai_model (name,is_default,is_available) VALUES ('PaLM2',0,1)"))
-    session.execute(text("INSERT INTO ai_model (name,is_default,is_available) VALUES ('Azure_openai',0,1)"))
+    models = config.ai_models.split(' ')
+    for index, model in enumerate(models, 1):
+        sql = text(f"INSERT INTO ai_model (name,is_default,is_available) VALUES ('{model}',{1 if index == 1 else 0},1)")
+        session.execute(sql)
     session.commit()
     session.close()
 else:
