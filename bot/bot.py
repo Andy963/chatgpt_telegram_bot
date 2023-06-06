@@ -180,12 +180,8 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
     user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
     try:
-        # list all available models
-        # use the default model to get answer
-        # ask other models the same questions, but just save to the database
+
         default_model = ai_model_db.get_default_model()
-        available_models = ai_model_db.get_available_models()
-        other_models = [m for m in available_models if m != default_model.name]
         if default_model is None:
             await update.message.reply_text("Please set default model first")
             return
@@ -199,7 +195,8 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         await tip_message.delete()
         answer_msg = await context.bot.send_message(text=f"🗣\n\n<pre>{answer}</pre>", chat_id=update.message.chat_id,
                                                     reply_to_message_id=message_id, parse_mode=ParseMode.HTML)
-        if not re.search(r'[\u4e00-\u9fff]+', message):
+        # if answer is not in chinese give translate options
+        if not re.search(r'[\u4e00-\u9fff]+', answer):
             translate_choice = [InlineKeyboardButton("请帮我翻译成中文󠁧󠁢󠁥󠁮󠁧󠁿", callback_data=f"translate|zh"),
                                 InlineKeyboardButton("🗣 Read Aloud", callback_data=f"Read|en")
                                 ]
