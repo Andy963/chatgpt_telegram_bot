@@ -1,14 +1,14 @@
-from ai import chatgpt, palm2
-from ai.azure_openai import AzureOpenAI
+from ai.google_utils import GoogleAIService
+from ai.openai_utils import OpenAIService
 from bot.helper import AzureService
 from config import config
 from database import engine
 from database.model_view import UserServices, DialogServices, ModelServices, PromptServices
 
 azure_service = AzureService()
-gpt_service = chatgpt.ChatGPT(model_name=config.openai_engine, use_stream=config.openai_response_streaming)
-palm_service = palm2.GooglePalm()
-azure_openai_service = AzureOpenAI()
+gpt_service = OpenAIService(model_name=config.openai_engine, api_type='chatgpt')
+azure_openai_service = OpenAIService(model_name=config.azure_openai_engine, api_type='azure')
+palm_service = GoogleAIService()
 
 user_db = UserServices(engine)
 dialog_db = DialogServices(engine)

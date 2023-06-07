@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# File: palm2.py
+# File: google_utils.py
 # Author: Zhou
 # Date: 2023/5/16
 # Copyright: 2023 Zhou
@@ -14,7 +14,7 @@ from config import config
 palm.configure(api_key=config.palm_api_key)
 
 
-class GooglePalm:
+class GoogleAIService:
 
     def __init__(self, model_name='models/chat-bison-001'):
         self.model = model_name

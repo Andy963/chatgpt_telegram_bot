@@ -17,7 +17,7 @@ from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import CallbackContext
 
-from ai import chatgpt
+from ai import CHAT_MODES
 from config import config
 from logs.log import logger
 from . import user_db, azure_service, dialog_db, gpt_service, ai_model_db, prompt_db, palm_service, azure_openai_service
@@ -193,7 +193,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         answer = await get_answer_from_ai(default_model.name, message, context=context_msg)
         message_id = update.message.message_id
         await tip_message.delete()
-        answer_msg = await context.bot.send_message(text=f"🗣\n\n<pre>{answer}</pre>", chat_id=update.message.chat_id,
+        answer_msg = await context.bot.send_message(text=f"🗣\n\n{answer}", chat_id=update.message.chat_id,
                                                     reply_to_message_id=message_id, parse_mode=ParseMode.HTML)
         # if answer is not in chinese give translate options
         if not re.search(r'[\u4e00-\u9fff]+', answer):
@@ -352,7 +352,7 @@ async def show_chat_modes_handle(update: Update, context: CallbackContext):
     user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
     keyboard = []
-    for chat_mode, chat_mode_dict in chatgpt.CHAT_MODES.items():
+    for chat_mode, chat_mode_dict in CHAT_MODES.items():
         keyboard.append([InlineKeyboardButton(chat_mode_dict["name"], callback_data=f"set_chat_mode|{chat_mode}")])
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -376,7 +376,7 @@ async def set_chat_mode_handle(update: Update, context: CallbackContext):
         parse_mode=ParseMode.HTML
     )
 
-    await query.edit_message_text(f"{chatgpt.CHAT_MODES[chat_mode]['welcome_message']}", parse_mode=ParseMode.HTML)
+    await query.edit_message_text(f"{CHAT_MODES[chat_mode]['welcome_message']}", parse_mode=ParseMode.HTML)
 
 
 async def edited_message_handle(update: Update, context: CallbackContext):
@@ -477,29 +477,15 @@ async def translate_handle(update, context, lang):
     query = update.callback_query
     text = query.message.reply_to_message.text.replace('🗣:', '', 1)
     translated_text = azure_service.translate(text=text, target_lang=target_lang)
-    await context.bot.send_message(text=f"<pre>{translated_text}</pre>", chat_id=query.message.chat_id,
+    await context.bot.send_message(text=f"{translated_text}", chat_id=query.message.chat_id,
                                    reply_to_message_id=query.message.reply_to_message.message_id,
                                    parse_mode=ParseMode.HTML)
-
-
-async def get_other_answer(update, context, model):
-    """ get the answer from the database"""
-    query = update.callback_query
-    dialog = dialog_db.get_dialog_messages(user_id=query.from_user.id, dialog_id=None, ai_model=model)
-    answer = dialog[-1]['assistant']
-    if answer:
-        await context.bot.send_message(text=f"<pre>{answer}</pre>", chat_id=query.message.chat_id,
-                                       reply_to_message_id=query.message.reply_to_message.message_id,
-                                       parse_mode=ParseMode.HTML)
 
 
 async def dispatch_callback_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update.callback_query, context, update.callback_query.from_user)
     query = update.callback_query
-    if query.data.startswith("get_other_model"):
-        _, model = query.data.split('|')
-        await get_other_answer(update, context, model)
-    elif query.data.startswith("translate"):
+    if query.data.startswith("translate"):
         _, lang = query.data.split('|')
         await translate_handle(update, context, lang)
     elif query.data.startswith("Read"):
@@ -512,6 +498,8 @@ async def dispatch_callback_handle(update: Update, context: CallbackContext):
         await prompt_handle(update, context)
     elif query.data.startswith('setModel'):
         await set_default_ai_model_handle(update, context)
+    elif query.data.startswith('set_chat_mode'):
+        await set_chat_mode_handle(update, context)
 
 
 async def error_handle(update: Update, context: CallbackContext) -> None:
