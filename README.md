@@ -1,13 +1,13 @@
 ## Telegram AI Bot:
 
-This repo a Telegram AI Bot(with chatgpt, palm2 etc.). **And it works great.**
+This repo a Telegram AI Bot(with chatgpt,azure-openai, palm2 etc.). **And it works great.**
 
 You can deploy your own bot
 
 ### Features
 
 - List of allowed Telegram users
-- ~~user `chatgpt-3.5-turbo` default~~ depends on your choice
+- use `chatgpt-3.5-turbo` default
 - reply with voice message (use azure text to speech)
 - multi language voice message support (azure TTS)
 - picture ocr and translate, summary, tell story joke etc.
@@ -24,7 +24,6 @@ You can deploy your own bot
 - `/balance` – Check your OpenAI balance (session key required)
 - `/lp` – List prompts (np, lp, dp: add new prompt, list prompt, del prompt with id)
 - `/lm` - List all ai model (chatgpt, palm2, azure_openai etc.)
-- `/sm` -- set default ai model
 
 ### Setup
 
@@ -45,27 +44,20 @@ docker run -d  --name chatgpt -v /etc/gpt:/etc/gpt andy963/telegram_chatgpt_bot:
 
 TODO:
 
-- [x] support voice message.
-- [x] voice reply (use azure text to speech)
-- [x] ~~code block~~ removed
-- [x] ~~typing effect~~ hard to read, removed
+- [x] support voice message. (use azure text to speech)
 - [x] reply with multiple language voice (contains En & Zh, need azure)
 - [x] picture ocr and translate, summary, tell story joke etc.
-- [x] ~~bing chat (gpt4) ( cookies required)~~ cookie expired soon,removed
-- [x] balance check from openai
-- [ ] ~~voice story~~
+- [x] balance check from openai(session key required)
 - [x] prompt list
 - [x] get content from url and summary the content(weak)
-- [ ] ~~pdf && article analysis (rate limit to 3/min, it's hard maybe later)~~ give up
 - [x] paLM2 support
 - [x] export history(only text for now).
-- [x] multi model dialog support
-  if you are using ubuntu 22.04, you need to install the latest libssl1.1 either as a binary package, or by compiling it
-  from sources.
-- [x] change default model
-- [ ] get the latest new and summarize and send to user on schedule (maybe with voice)
+- [x] multi model support (support chatgpt, palm2, azure_openai etc.)
 - [x] azure openai support
+- [ ] get the latest new and summarize and send to user on schedule (maybe with voice)
 
+if you are using ubuntu 22.04, you need to install the latest libssl1.1 either as a binary package, or by compiling it
+from sources.
 ```shell
 
 ## References
