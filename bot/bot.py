@@ -129,22 +129,6 @@ async def help_handle(update: Update, context: CallbackContext):
     await update.message.reply_text(HELP_MESSAGE, parse_mode=ParseMode.HTML)
 
 
-async def balance_handle(update: Update, context: CallbackContext):
-    await register_user_if_not_exists(update, context, update.message.from_user)
-    user_id = update.message.from_user.id
-    user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
-    if not config.openai_session_key:
-        await update.message.reply_text("You have not set session key, can't check balance 🤷‍♂️")
-        return
-    total_granted, total_used, total_available = await gpt_service.get_balance(config.openai_session_key)
-    if total_available is not None:
-        await update.message.reply_text(
-            f'You have {total_granted} credits, used: {total_used}, available: {total_available}')
-        return
-
-    await update.message.reply_text(f'sth wrong with check balance, please check your session key 🤷‍♂️')
-
-
 async def retry_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
@@ -343,7 +327,7 @@ async def new_dialog_handle(update: Update, context: CallbackContext):
     await update.message.reply_text("Starting new dialog ✅")
 
     chat_mode = user_db.get_user_attribute(user_id, "current_chat_mode")
-    await update.message.reply_text(f"{chatgpt.CHAT_MODES[chat_mode]['welcome_message']}", parse_mode=ParseMode.HTML)
+    await update.message.reply_text(f"{CHAT_MODES[chat_mode]['welcome_message']}", parse_mode=ParseMode.HTML)
 
 
 async def show_chat_modes_handle(update: Update, context: CallbackContext):
@@ -372,7 +356,7 @@ async def set_chat_mode_handle(update: Update, context: CallbackContext):
     dialog_db.start_new_dialog(user_id)
 
     await query.edit_message_text(
-        f"<b>{chatgpt.CHAT_MODES[chat_mode]['name']}</b> chat mode is set",
+        f"<b>{CHAT_MODES[chat_mode]['name']}</b> chat mode is set",
         parse_mode=ParseMode.HTML
     )
 
