@@ -32,7 +32,6 @@ HELP_MESSAGE = """Commands:
 ⚪ /new – Start new dialog
 ⚪ /mode – Select chat mode
 ⚪ /help – Show help
-⚪ /balance – for gpt(session key required)
 ⚪ /np   – new prompt
 ⚪ /lp   – List prompts
 ⚪ /lm   – List ai models 

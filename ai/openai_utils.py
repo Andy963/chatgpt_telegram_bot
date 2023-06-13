@@ -76,7 +76,6 @@ class OpenAIService:
             messages.append({"role": "user", "content": msg["user"]})
             messages.append({"role": "assistant", "content": msg["assistant"]})
         messages.append({"role": "user", "content": message})
-
         return messages
 
     async def send_message(self, message, dialog_messages=None, chat_mode="assistant"):

@@ -21,7 +21,6 @@ You can deploy your own bot
 - `/new` – Start new dialog
 - `/mode` – Select chat mode
 - `/help` – Show help
-- `/balance` – Check your OpenAI balance (session key required)
 - `/lp` – List prompts (np, lp, dp: add new prompt, list prompt, del prompt with id)
 - `/lm` - List all ai model (chatgpt, palm2, azure_openai etc.)
 
@@ -47,7 +46,6 @@ TODO:
 - [x] support voice message. (use azure text to speech)
 - [x] reply with multiple language voice (contains En & Zh, need azure)
 - [x] picture ocr and translate, summary, tell story joke etc.
-- [x] balance check from openai(session key required)
 - [x] prompt list
 - [x] get content from url and summary the content(weak)
 - [x] paLM2 support

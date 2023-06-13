@@ -3,7 +3,7 @@ from pathlib import Path
 import yaml
 
 # config_dir = Path(__file__).parent.parent.resolve() / "config"
-config_dir = Path('/etc/gpt')
+config_dir = Path('/etc/aibot')
 # load yaml config
 with open(config_dir / "config.yml", 'r') as f:
     config_yaml = yaml.safe_load(f)
