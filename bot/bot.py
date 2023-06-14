@@ -20,7 +20,8 @@ from telegram.ext import CallbackContext
 from ai import CHAT_MODES
 from config import config
 from logs.log import logger
-from . import user_db, azure_service, dialog_db, gpt_service, ai_model_db, prompt_db, palm_service, azure_openai_service
+from . import user_db, azure_service, dialog_db, gpt_service, ai_model_db, prompt_db, palm_service, \
+    azure_openai_service, anthropic_service
 from .helper import send_like_tying, check_contain_code, render_msg_with_code, get_main_lang, num_tokens_from_string
 
 # setup
@@ -254,6 +255,8 @@ async def get_answer_from_ai(ai_name: str, message: str, context: list):
     elif 'palm2' in ai_name:
         message = azure_service.translate(message)
         answer = await palm_service.send_message(message, context)
+    elif 'claude' in ai_name:
+        answer = await anthropic_service.send_message(message, context)
     return answer
 
 

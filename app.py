@@ -11,7 +11,7 @@ from telegram.ext import (
 
 from bot.bot import start_handle, help_handle, message_handle, retry_handle, new_dialog_handle, show_chat_modes_handle, \
     set_chat_mode_handle, error_handle, voice_message_handle, photo_handle, dispatch_callback_handle,  \
-    new_prompt_handle, list_prompt_handle, del_prompt_handle, export_handle, set_default_ai_model_handle, \
+    new_prompt_handle, list_prompt_handle, del_prompt_handle, export_handle, \
     list_ai_model_handle
 from config import config
 

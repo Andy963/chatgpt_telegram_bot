@@ -1,3 +1,4 @@
+from ai.anthropic import AnthropicService
 from ai.google_utils import GoogleAIService
 from ai.openai_utils import OpenAIService
 from bot.helper import AzureService
@@ -9,6 +10,7 @@ azure_service = AzureService()
 gpt_service = OpenAIService(model_name=config.openai_engine, api_type='chatgpt')
 azure_openai_service = OpenAIService(model_name=config.azure_openai_engine, api_type='azure')
 palm_service = GoogleAIService()
+anthropic_service = AnthropicService(api_key=config.claude_api_key)
 
 user_db = UserServices(engine)
 dialog_db = DialogServices(engine)

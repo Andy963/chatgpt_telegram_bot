@@ -14,6 +14,7 @@ You can deploy your own bot
 - parse a url link(only summary the text for now)
 - paLM2 support(use azure translate to en and ask palm2, palm2 translate is so weak)
 - azure openai support
+- Anthropic claude support
 
 ### Bot commands
 
