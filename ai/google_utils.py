@@ -9,22 +9,19 @@
 # Description:  google paLM2 service
 import google.generativeai as palm
 
-from config import config
-
-palm.configure(api_key=config.palm_api_key)
-
 
 class GoogleAIService:
 
-    def __init__(self, model_name='models/chat-bison-001'):
+    def __init__(self, api_key: str, model_name='models/chat-bison-001'):
         self.model = model_name
+        self.palm = palm.configure(api_key=api_key)
 
     async def en2zh(self, message):
         """translate english to chinese
         it's weak for now
         """
         prompt = f"Please translate the following sentence into Chinese(return the translated sentence only): {message}"
-        rsp = palm.generate_text(prompt=prompt)
+        rsp = self.palm.generate_text(prompt=prompt)
         return rsp.result
 
     async def zh2en(self, message):
@@ -32,7 +29,7 @@ class GoogleAIService:
         it's weak for now
         """
         prompt = f"Please translate the following sentence into english(return the translated sentence only): '{message}'"
-        rsp = palm.generate_text(prompt=prompt)
+        rsp = self.palm.generate_text(prompt=prompt)
         return rsp.result
 
     async def send_message(self, message, dialog_messages=None, examples=None):
@@ -50,7 +47,8 @@ class GoogleAIService:
             dialog_messages = []
 
         context = self.gen_context(message, dialog_messages)
-        response = palm.chat(model=self.model, messages=message, context=context, examples=examples, candidate_count=1)
+        response = self.palm.chat(model=self.model, messages=message, context=context, examples=examples,
+                                  candidate_count=1)
         answer = response.last
         return answer
 

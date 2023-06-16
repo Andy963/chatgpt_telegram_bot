@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# File: anthropic.py
+# File: anthropic_utils.py
 # Author: Zhou
 # Date: 2023/6/14
 # Copyright: 2023 Zhou
@@ -11,7 +11,7 @@ import anthropic
 from ai import CHAT_MODES
 
 
-class AnthropicService:
+class AnthropicAIService:
     def __init__(self, api_key: str, model_name: str = 'claude-1-100k', **kwargs):
         self.model_name = model_name
         self.claude = anthropic.Client(api_key)
@@ -49,7 +49,6 @@ class AnthropicService:
         while answer is None:
             try:
                 messages = self._generate_msg(message, dialog_messages, chat_mode)
-                print(messages)
                 resp = self.claude.completion(
                     prompt=messages,
                     model="claude-1-100k",
@@ -57,6 +56,6 @@ class AnthropicService:
                 )
                 answer = resp['completion']
             except Exception as e:
-                pass
+                answer = f"claude error: {e}"
 
         return answer

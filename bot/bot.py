@@ -35,7 +35,7 @@ HELP_MESSAGE = """Commands:
 ⚪ /help – Show help
 ⚪ /np   – new prompt
 ⚪ /lp   – List prompts
-⚪ /lm   – List ai models 
+⚪ /model   – List ai models 
 ⚪ /export   – export history
 
  
@@ -257,6 +257,8 @@ async def get_answer_from_ai(ai_name: str, message: str, context: list):
         answer = await palm_service.send_message(message, context)
     elif 'claude' in ai_name:
         answer = await anthropic_service.send_message(message, context)
+    else:
+        answer = "Ai model not found."
     return answer
 
 
@@ -280,10 +282,7 @@ async def voice_message_handle(update: Update, context: CallbackContext):
             recognized_text = azure_service.speech2text(a_file) or ''
             # send the recognised text
             text = 'You said: ' + recognized_text
-            if config.telegram_typing_effect:
-                await send_like_tying(update, context, text)
-            else:
-                await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+            await update.message.reply_text(text, parse_mode=ParseMode.HTML)
             answer, _ = gpt_service.send_message(
                 recognized_text, dialog_messages=dialog_db.get_dialog_messages(user_id, dialog_id=None),
                 chat_mode=user_db.get_user_attribute(user_id, "current_chat_mode")
@@ -293,10 +292,7 @@ async def voice_message_handle(update: Update, context: CallbackContext):
                 answer = render_msg_with_code(answer)
                 await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
             else:
-                if config.telegram_typing_effect:
-                    await send_like_tying(update, context, answer)
-                else:
-                    await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
+                await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
                 # check if a text_to_speech key is provided
                 if config.azure_text2speech_key:
                     await reply_voice(update, context, answer)
@@ -415,10 +411,7 @@ async def ocr_handle(update: Update, context: CallbackContext):
         await query.message.chat.send_action(action="typing")
         text_main_lang = get_main_lang(text)
         if action_type == 'None':  # only ocr
-            if config.telegram_typing_effect:
-                await send_like_tying(update, context, text)
-            else:
-                await query.message.reply_text(text, parse_mode=ParseMode.HTML)
+            await query.message.reply_text(text, parse_mode=ParseMode.HTML)
             await tip_message.delete()
             return
         elif action_type == 'zh' or action_type == 'en':  # need translate
@@ -435,10 +428,7 @@ async def ocr_handle(update: Update, context: CallbackContext):
                                              chat_mode=user_db.get_user_attribute(user_id, "current_chat_mode")
                                              )
         await tip_message.delete()
-        if config.telegram_typing_effect:
-            await send_like_tying(update, context, answer)
-        else:
-            await query.message.reply_text(answer, parse_mode=ParseMode.HTML)
+        await query.message.reply_text(answer, parse_mode=ParseMode.HTML)
     else:
         await query.message.reply_text("No text found in the picture", parse_mode=ParseMode.HTML)
 
@@ -589,10 +579,7 @@ async def prompt_handle(update: Update, context: CallbackContext):
         if not answer:
             await query.message.reply_text("I have no idea about this.")
             return
-        elif config.telegram_typing_effect:
-            await send_like_tying(update, context, answer)
-        else:
-            await query.message.reply_text(answer, parse_mode=ParseMode.HTML)
+        await query.message.reply_text(answer, parse_mode=ParseMode.HTML)
         await tip_message.delete()
     else:
         await query.message.reply_text("Prompt not found.")

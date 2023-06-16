@@ -1,20 +1,24 @@
 telegram_token: ""
-telegram_typing_effect: true
 allowed_telegram_usernames: [ ]  # if empty, the bot is available to anyone
 
 openai_api_key: ""
 openai_engine: "gpt-3.5-turbo" # currently not support davinci anymore
-openai_response_streaming: true
 
 azure_text2speech_key: ""
 azure_speech2text_key: ""
 azure_recognize_key: ""
 azure_recognize_endpoint: ""
-azure_region: ""
 azure_translate_key: ""
 azure_translate_endpoint: ""
+azure_region: ""
+azure_openai_endpoint: ""
+azure_openai_api_version: ""
+azure_openai_api_key: ""
 
 palm_api_key: ""
+claude_api_key: ""
+
 
 new_dialog_timeout: 600  # new dialog starts after timeout (in seconds)
 reply_voice_with_voice: true
+ai_models: "ChatGpt PaLM2 Azure_openai Claude"
