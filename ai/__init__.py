@@ -10,7 +10,9 @@ CHAT_MODES = {
     "assistant": {
         "name": "👩🏼‍🎓 Assistant",
         "welcome_message": f"👩🏼‍🎓 Hi, I'm <b> assistant</b>. How can I help you?",
-        "prompt_start": """ As an advanced chatbot, your primary goal is to assist users to the best of your ability."""
+        "prompt_start": """ As an advanced chatbot, your primary goal is to assist users to the best of your ability.
+        Remember, If you don't know the answer to a question, you can always ask the user to rephrase it, but don't give
+        me a wrong answer"""
     },
 
     "code_assistant": {

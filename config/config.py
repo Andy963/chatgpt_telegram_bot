@@ -31,7 +31,7 @@ azure_openai_engine= config_yaml.get("azure_openai_engine", 'gpt-35-turbo')
 azure_openai_api_version = config_yaml.get("azure_openai_api_version", None)
 azure_openai_api_key = config_yaml.get("azure_openai_api_key", None)
 
-new_dialog_timeout = config_yaml.get("new_dialog_timeout", 600)
+new_dialog_timeout = config_yaml.get("new_dialog_timeout", 1800)
 palm_api_key = config_yaml.get('palm_api_key', None)
 claude_api_key = config_yaml.get('claude_api_key', None)
 ai_models = config_yaml.get("ai_models", None)
