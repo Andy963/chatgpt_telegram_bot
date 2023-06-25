@@ -157,6 +157,10 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
 
     await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
+    user_obj = user_db.get_user_by_user_id(user_id)
+    if not user_obj or not user_obj.has_api_count():
+        await update.message.reply_text("You have no API count left, please contact the admin to get more 🤷‍♂️")
+        return
 
     # new dialog timeout
     if use_new_dialog_timeout:
@@ -197,6 +201,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             user_id, dialog_db.get_dialog_messages(user_id, ai_model='ChatGpt') + [new_dialog_message],
             ai_model="ChatGpt")
 
+        user_db.consume_api_count(user_id)
     except Exception as e:
         error_text = f"Sth went wrong: {e}"
         logger.error(f" error stack: {traceback.format_exc()}")

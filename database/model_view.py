@@ -117,6 +117,17 @@ class UserServices(Database):
             else:
                 self.add_new_user(config.root_user_id, 0, role_id=role_id)
 
+    def is_admin(self, user_id: str):
+        # admin user will not consume api count
+        return self.session.query(User).filter_by(user_id=user_id).first().role.has_permission(Permission.ADMIN)
+
+    def consume_api_count(self, user_id: str):
+        with self as session:
+            user = session.query(User).filter_by(user_id=user_id).first()
+            if user and user.api_count > 0 and not self.is_admin(user_id):
+                user.api_count = user.api_count - 1
+                session.add(user)
+
 
 class DialogServices(Database):
 

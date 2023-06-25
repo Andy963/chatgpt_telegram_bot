@@ -27,11 +27,15 @@ class User(Base):
     first_seen = Column(DateTime, nullable=False, default=datetime.now)
     current_dialog_id = Column(Integer, nullable=True, default=None)
     current_chat_mode = Column(String(64), nullable=True, default='assistant')
+    api_count = Column(Integer, nullable=False, default=10)
     role_id = Column(Integer, ForeignKey('role.id'))
     role = relationship("Role", backref="users")
 
     def has_permission(self, perm: Permission):
         return self.role.permissions & perm.value == perm.value
+
+    def has_api_count(self):
+        return self.api_count > 0
 
 
 class Role(Base):
