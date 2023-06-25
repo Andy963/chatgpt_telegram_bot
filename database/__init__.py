@@ -8,11 +8,10 @@
 # Description:  Database init
 import os
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from config import config
-from database.model_view import RoleServices
+from database.model_view import RoleServices, ModelServices
 from database.models import Base
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -21,13 +20,9 @@ db_url = f'sqlite:///{os.path.join(base_dir, db_file)}'
 if not os.path.exists(db_file):
     engine = create_engine(db_url, echo=False)
     Base.metadata.create_all(engine)
-    session = sessionmaker(bind=engine)()
-    models = config.ai_models.split(' ')
-    for index, model in enumerate(models, 1):
-        sql = text(f"INSERT INTO ai_model (name,is_default,is_available) VALUES ('{model}',{1 if index == 1 else 0},1)")
-        session.execute(sql)
-    session.commit()
-    session.close()
+
+    models_service = ModelServices(engine)
+    models_service.init_models()
 
     role_service = RoleServices(engine)
     role_service.init_roles()

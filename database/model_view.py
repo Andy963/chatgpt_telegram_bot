@@ -6,6 +6,7 @@ from sqlalchemy import desc
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import sessionmaker
 
+from config import config
 from .models import User, Dialog, Prompt, AiModel, Permission, Role
 
 
@@ -167,6 +168,13 @@ class DialogServices(Database):
 
 
 class ModelServices(Database):
+
+    def init_models(self):
+        # init models from config available models
+        models = config.ai_models.split(' ')
+        for index, model_name in enumerate(models, 1):
+            self.add_new_model(model_name, is_default=model_name == 'Claude', is_available=True)
+
     def get_available_models(self):
         return [m.name for m in self.session.query(AiModel).filter_by(is_available=True).all()]
 
