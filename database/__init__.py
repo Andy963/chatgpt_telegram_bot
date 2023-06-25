@@ -9,9 +9,8 @@
 import os
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from database.model_view import RoleServices, ModelServices
+from database.model_view import RoleServices, ModelServices, UserServices
 from database.models import Base
 
 base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -26,5 +25,8 @@ if not os.path.exists(db_file):
 
     role_service = RoleServices(engine)
     role_service.init_roles()
+
+    user_service = UserServices(engine)
+    user_service.init_root_user()
 else:
     engine = create_engine(db_url, echo=False)

@@ -27,7 +27,7 @@ azure_translate_key = config_yaml.get("azure_translate_key", None)
 azure_translate_endpoint = config_yaml.get("azure_translate_endpoint", None)
 
 azure_openai_endpoint = config_yaml.get("azure_openai_endpoint", None)
-azure_openai_engine= config_yaml.get("azure_openai_engine", 'gpt-35-turbo')
+azure_openai_engine = config_yaml.get("azure_openai_engine", 'gpt-35-turbo')
 azure_openai_api_version = config_yaml.get("azure_openai_api_version", None)
 azure_openai_api_key = config_yaml.get("azure_openai_api_key", None)
 
@@ -36,5 +36,5 @@ palm_api_key = config_yaml.get('palm_api_key', None)
 claude_api_key = config_yaml.get('claude_api_key', None)
 ai_models = config_yaml.get("ai_models", None)
 
+root_user_id = config_yaml.get("root_user_id", None)  # set telegram user admin
 log = '/etc/aibot/ai.log'
-

@@ -106,6 +106,17 @@ class UserServices(Database):
         # telegram user id
         return self.session.query(User).filter_by(user_id=user_id).first()
 
+    def init_root_user(self):
+        with self as session:
+            role_id = session.query(Role).filter_by(name='Root').first().id
+            user = session.query(User).filter_by(user_id=config.root_user_id).first()
+            if user:
+                if role_id and user.role_id != role_id:
+                    user.role_id = role_id
+                    session.add(user)
+            else:
+                self.add_new_user(config.root_user_id, 0, role_id=role_id)
+
 
 class DialogServices(Database):
 
