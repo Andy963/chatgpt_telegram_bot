@@ -19,10 +19,11 @@ from telegram.ext import CallbackContext
 
 from ai import CHAT_MODES
 from config import config
+from database.models import Permission
 from logs.log import logger
 from . import user_db, azure_service, dialog_db, gpt_service, ai_model_db, prompt_db, palm_service, \
-    azure_openai_service, anthropic_service
-from .helper import send_like_tying, check_contain_code, render_msg_with_code, get_main_lang, num_tokens_from_string
+    azure_openai_service, anthropic_service, role_db
+from .helper import check_contain_code, render_msg_with_code, get_main_lang, num_tokens_from_string
 
 # setup
 
@@ -44,12 +45,14 @@ HELP_MESSAGE = """Commands:
 
 async def register_user_if_not_exists(update: Update, context: CallbackContext, user: User):
     if not user_db.check_if_user_exists(user.id):
+        role_id = role_db.get_default_role().id
         user_db.add_new_user(
             user.id,
             update.message.chat_id,
             username=user.username,
             first_name=user.first_name,
-            last_name=user.last_name
+            last_name=user.last_name,
+            role_id=role_id
         )
 
 
@@ -504,6 +507,13 @@ async def error_handle(update: Update, context: CallbackContext) -> None:
 
 async def list_ai_model_handle(update: Update, context: CallbackContext):
     """ list the ai model"""
+    user = update.message.from_user
+    await register_user_if_not_exists(update, context, user)
+    user_obj = user_db.get_user_by_user_id(user.id)
+    if not user_obj or not user_obj.has_permission(Permission.ADMIN):
+        await update.message.reply_text("You don't have permission to do this")
+        return
+
     models = ai_model_db.list_all_model()
     if len(models) == 0:
         await update.message.reply_text("No models yet, please add one first.")

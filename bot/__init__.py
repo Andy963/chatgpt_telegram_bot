@@ -4,7 +4,7 @@ from ai.openai_utils import OpenAIService
 from bot.helper import AzureService
 from config import config
 from database import engine
-from database.model_view import UserServices, DialogServices, ModelServices, PromptServices
+from database.model_view import UserServices, DialogServices, ModelServices, PromptServices, RoleServices
 
 azure_service = AzureService()
 gpt_service = OpenAIService(model_name=config.openai_engine, api_type='chatgpt')
@@ -16,3 +16,4 @@ user_db = UserServices(engine)
 dialog_db = DialogServices(engine)
 ai_model_db = ModelServices(engine)
 prompt_db = PromptServices(engine)
+role_db = RoleServices(engine)

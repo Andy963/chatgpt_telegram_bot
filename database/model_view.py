@@ -45,6 +45,9 @@ class RoleServices(Database):
                     role.add_permission(p)
                 session.add(role)
 
+    def get_default_role(self):
+        return self.session.query(Role).filter_by(name='User').first()
+
 
 class UserServices(Database):
     def check_if_user_exists(self, user_id: str):
@@ -53,13 +56,16 @@ class UserServices(Database):
         """
         return self.session.query(User).filter_by(user_id=user_id).count() > 0
 
-    def add_new_user(self, user_id: str, chat_id: int, username: str = "", first_name: str = "", last_name: str = ""):
+    def add_new_user(self, user_id: str, chat_id: int, username: str = "", first_name: str = "", last_name: str = "",
+                     role_id: int = 0):
         """Add new user to database if not exists
         """
         if not self.check_if_user_exists(user_id):
+            if role_id == 0:
+                role_id = RoleServices(self._engine).get_default_role().id
             with self as session:
                 user = User(**{'user_id': user_id, 'chat_id': chat_id, 'username': username, 'first_name': first_name,
-                               'last_name': last_name})
+                               'last_name': last_name, 'role_id': role_id})
                 session.add(user)
         else:
             raise Exception('user already exists')
@@ -95,6 +101,10 @@ class UserServices(Database):
         """
         with self as session:
             session.query(User).filter_by(user_id=user_id).delete()
+
+    def get_user_by_user_id(self, user_id):
+        # telegram user id
+        return self.session.query(User).filter_by(user_id=user_id).first()
 
 
 class DialogServices(Database):
