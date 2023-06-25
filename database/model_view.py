@@ -6,7 +6,7 @@ from sqlalchemy import desc
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import sessionmaker
 
-from .models import User, Dialog, Prompt, AiModel
+from .models import User, Dialog, Prompt, AiModel, Permission, Role
 
 
 class Database:
@@ -25,6 +25,24 @@ class Database:
             self.session.rollback()
         self.session.close()
         # self._engine.dispose()
+
+
+class RoleServices(Database):
+    def init_roles(self):
+        with self as session:
+            roles = {
+                'User': [Permission.USER, ],
+                'Admin': [Permission.USER, Permission.ADMIN],
+                'Root': [Permission.USER, Permission.ADMIN, Permission.ROOT],
+            }
+            for r in roles:
+                role = self.session.query(Role).filter_by(name=r).first()
+                if role is None:
+                    role = Role(name=r)
+                role.reset_permission()
+                for p in roles[r]:
+                    role.add_permission(p)
+                session.add(role)
 
 
 class UserServices(Database):

@@ -1,11 +1,18 @@
 #!/usr/bin/python
 # coding:utf-8
 from datetime import datetime
+from enum import Enum
 
 from sqlalchemy import Column, Integer, String, DateTime, JSON, Text, ForeignKey, Boolean, CheckConstraint
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
+
+
+class Permission(Enum):
+    USER = 1
+    ADMIN = 2
+    ROOT = 4
 
 
 class User(Base):
@@ -20,6 +27,32 @@ class User(Base):
     first_seen = Column(DateTime, nullable=False, default=datetime.now)
     current_dialog_id = Column(Integer, nullable=True, default=None)
     current_chat_mode = Column(String(64), nullable=True, default='assistant')
+    role_id = Column(Integer, ForeignKey('role.id'))
+    role = relationship("Role", backref="users")
+
+    def has_permission(self, perm: Permission):
+        return self.role.permissions & perm.value == perm.value
+
+
+class Role(Base):
+    __tablename__ = 'role'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(64), unique=True)
+    permissions = Column(Integer, nullable=False, default=Permission.USER)
+
+    def has_permission(self, perm: Permission):
+        return self.permissions & perm.value == perm.value
+
+    def add_permission(self, perm: Permission):
+        if not self.has_permission(perm):
+            self.permissions += perm.value
+
+    def remove_permission(self, perm: Permission):
+        if self.has_permission(perm):
+            self.permissions -= perm.value
+
+    def reset_permission(self):
+        self.permissions = 0
 
 
 class Dialog(Base):
