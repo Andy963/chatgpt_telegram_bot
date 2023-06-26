@@ -15,6 +15,7 @@ You can deploy your own bot
 - paLM2 support(use azure translate to en and ask palm2, palm2 translate is so weak)
 - azure openai support
 - Anthropic claude support
+- user management
 
 ### Bot commands
 
@@ -23,7 +24,7 @@ You can deploy your own bot
 - `/mode` – Select chat mode
 - `/help` – Show help
 - `/lp` – List prompts (np, lp, dp: add new prompt, list prompt, del prompt with id)
-- `/lm` - List all ai model (chatgpt, palm2, azure_openai etc.)
+- `/model` - List all ai model (chatgpt, palm2, azure_openai etc. admin required)
 
 ### Setup
 
@@ -53,6 +54,10 @@ TODO:
 - [x] export history(only text for now).
 - [x] multi model support (support chatgpt, palm2, azure_openai etc.)
 - [x] azure openai support
+- [x] Anthropic claude support
+- [x] user management
+- [ ] user list page by page
+- [ ] model select by user
 - [ ] get the latest new and summarize and send to user on schedule (maybe with voice)
 
 if you are using ubuntu 22.04, you need to install the latest libssl1.1 either as a binary package, or by compiling it

@@ -484,6 +484,12 @@ async def dispatch_callback_handle(update: Update, context: CallbackContext):
         await set_default_ai_model_handle(update, context)
     elif query.data.startswith('set_chat_mode'):
         await set_chat_mode_handle(update, context)
+    elif query.data.startswith('m_user'):
+        await manage_user_handle(update, context)
+    elif query.data.startswith('add_api_count'):
+        await add_api_count_handle(update, context)
+    elif query.data.startswith('admin_user'):
+        await set_admin_handle(update, context)
 
 
 async def error_handle(update: Update, context: CallbackContext) -> None:
@@ -508,6 +514,71 @@ async def error_handle(update: Update, context: CallbackContext) -> None:
             await context.bot.send_message(update.effective_chat.id, message_chunk, parse_mode=ParseMode.HTML)
     except Exception as e:
         await context.bot.send_message(update.effective_chat.id, "Some error in error handler")
+
+
+async def list_user_handle(update: Update, context: CallbackContext):
+    # for admin to manage user
+    user = update.message.from_user
+    await register_user_if_not_exists(update, context, user)
+    user_obj = user_db.get_user_by_user_id(user.id)
+    if not user_obj or not user_db.is_admin(user.id):
+        await update.message.reply_text("You don't have permission to do this")
+        return
+    users = user_db.list_all_user()
+    text = "List All Users \nHere are the available users:\n"
+    btns = InlineKeyboardMarkup([[InlineKeyboardButton(
+        f"{user.username}{user.user_id}", callback_data=f"m_user|{user.user_id}")] for user in users])
+    await update.message.reply_text(text, reply_markup=btns, parse_mode=ParseMode.HTML)
+
+
+async def manage_user_handle(update: Update, context: CallbackContext):
+    user = update.callback_query.from_user
+    user_obj = user_db.get_user_by_user_id(user.id)
+    if not user_obj or not user_db.is_admin(user.id):
+        await update.message.reply_text("You don't have permission to do this")
+        return
+    _, user_id = update.callback_query.data.split('|')
+    cur_user = user_db.get_user_by_user_id(user_id)
+    text = f"{'👑' if user_db.is_admin(cur_user.user_id) else '👤'}{cur_user.username} \
+    id:{cur_user.user_id} (API COUNT:{cur_user.api_count}  TOTAL:{cur_user.total_api_count})"
+    btns = InlineKeyboardMarkup(
+        [[InlineKeyboardButton("ADD API 50", callback_data=f"add_api_count|{cur_user.user_id}|{50}"),
+          InlineKeyboardButton("ADD API 100", callback_data=f"add_api_count|{cur_user.user_id}|{100}"),
+          InlineKeyboardButton("ADD API 500", callback_data=f"add_api_count|{cur_user.user_id}|{500}"),
+          ], [InlineKeyboardButton("BLOCK CURRENT USER", callback_data=f"add_api_count|{cur_user.user_id}|{0}"),
+              InlineKeyboardButton("SET AS ADMIN", callback_data=f"admin_user|{cur_user.user_id}"), ]])
+    await context.bot.send_message(chat_id=update.callback_query.message.chat_id,
+                                   text=text, reply_markup=btns, parse_mode=ParseMode.HTML)
+
+
+async def add_api_count_handle(update: Update, context: CallbackContext):
+    user = update.callback_query.from_user
+    user_obj = user_db.get_user_by_user_id(user.id)
+    if not user_obj or not user_db.is_admin(user.id):
+        await update.message.reply_text("You don't have permission to do this")
+        return
+    _, user_id, count = update.callback_query.data.split('|')
+    if count == '0':
+        user_db.set_user_attribute(user_id, 'api_count', int(count))
+    else:
+        user_db.add_user_api_count(user_id, int(count))
+    await context.bot.send_message(chat_id=update.callback_query.message.chat_id,
+                                   text=f"Add {count} to {user_id} successfully.Current api count:\
+        {user_db.get_user_by_user_id(user_id).api_count}")
+
+
+async def set_admin_handle(update: Update, context: CallbackContext):
+    user = update.callback_query.from_user
+    user_obj = user_db.get_user_by_user_id(user.id)
+    if not user_obj or not user_db.is_admin(user.id):
+        await update.message.reply_text("You don't have permission to do this")
+        return
+    _, user_id = update.callback_query.data.split('|')
+    role_id = role_db.get_role_by_name('admin').role_id
+    if not user_db.is_admin(user_id):
+        user_db.set_user_attribute(user_id, 'role_id', role_id)
+        await context.bot.send_message(chat_id=update.callback_query.message.chat_id,
+                                       text=f"Set {user_id} as admin successfully.")
 
 
 async def list_ai_model_handle(update: Update, context: CallbackContext):

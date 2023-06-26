@@ -83,6 +83,9 @@ class UserServices(Database):
         except NoResultFound:
             return None
 
+    def list_all_user(self):
+        return self.session.query(User).all()
+
     def set_user_attribute(self, user_id: str, key: str, value: Any):
         """Do Not use check if user exists before calling this method or it query the database twice,
                 use try except instead
@@ -92,6 +95,15 @@ class UserServices(Database):
             user = self.session.query(User).filter_by(user_id=user_id).first()
             with self as session:
                 setattr(user, key, value)
+                session.add(user)
+        except NoResultFound:
+            pass
+
+    def add_user_api_count(self, user_id: str, count: int):
+        try:
+            user = self.session.query(User).filter_by(user_id=user_id).first()
+            with self as session:
+                user.api_count += count
                 session.add(user)
         except NoResultFound:
             pass
@@ -120,6 +132,10 @@ class UserServices(Database):
     def is_admin(self, user_id: str):
         # admin user will not consume api count
         return self.session.query(User).filter_by(user_id=user_id).first().role.has_permission(Permission.ADMIN)
+
+    def is_root(self, user_id: str):
+        # root user will not consume api count
+        return self.session.query(User).filter_by(user_id=user_id).first().role.has_permission(Permission.ROOT)
 
     def consume_api_count(self, user_id: str):
         with self as session:
