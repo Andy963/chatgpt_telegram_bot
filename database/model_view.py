@@ -124,8 +124,10 @@ class UserServices(Database):
     def consume_api_count(self, user_id: str):
         with self as session:
             user = session.query(User).filter_by(user_id=user_id).first()
-            if user and user.api_count > 0 and not self.is_admin(user_id):
-                user.api_count = user.api_count - 1
+            if user:
+                user.total_api_count += 1
+                if user.api_count > 0 and not self.is_admin(user_id):
+                    user.api_count -= 1
                 session.add(user)
 
 

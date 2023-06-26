@@ -27,7 +27,8 @@ class User(Base):
     first_seen = Column(DateTime, nullable=False, default=datetime.now)
     current_dialog_id = Column(Integer, nullable=True, default=None)
     current_chat_mode = Column(String(64), nullable=True, default='assistant')
-    api_count = Column(Integer, nullable=False, default=10)
+    api_count = Column(Integer, nullable=False, default=10, comment='Normal user can use 10 times')
+    total_api_count = Column(Integer, nullable=False, default=0, comment='Total used api count')
     role_id = Column(Integer, ForeignKey('role.id'))
     role = relationship("Role", backref="users")
 
