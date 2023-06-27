@@ -539,7 +539,8 @@ async def manage_user_handle(update: Update, context: CallbackContext):
         return
     _, user_id = update.callback_query.data.split('|')
     cur_user = user_db.get_user_by_user_id(user_id)
-    text = f"{'👑' if user_db.is_admin(cur_user.user_id) else '👤'}{cur_user.username} \
+    is_admin = user_db.is_admin(user_id)
+    text = f"{'👑' if is_admin else '👤'}{cur_user.username if cur_user.username else 'Nobody'} \
     id:{cur_user.user_id} (API COUNT:{cur_user.api_count}  TOTAL:{cur_user.total_api_count})"
     btns = InlineKeyboardMarkup(
         [[InlineKeyboardButton("ADD API 50", callback_data=f"add_api_count|{cur_user.user_id}|{50}"),
