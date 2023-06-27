@@ -1,0 +1,7 @@
+README.md
+*__pycache__/
+db.sqlite
+LICENSE
+tests/
+*config.example.yml
+config.yml
