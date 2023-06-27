@@ -291,7 +291,7 @@ async def voice_message_handle(update: Update, context: CallbackContext):
             # send the recognised text
             text = 'You said: ' + recognized_text
             await update.message.reply_text(text, parse_mode=ParseMode.HTML)
-            answer, _ = gpt_service.send_message(
+            answer, _ = await gpt_service.send_message(
                 recognized_text, dialog_messages=dialog_db.get_dialog_messages(user_id, dialog_id=None),
                 chat_mode=user_db.get_user_attribute(user_id, "current_chat_mode")
             )
@@ -432,9 +432,8 @@ async def ocr_handle(update: Update, context: CallbackContext):
         elif action_type == 'joke':
             text = f"{text} Tell me a joke according to the text in {text_main_lang}."
 
-        answer, _ = gpt_service.send_message(text, dialog_messages=[],
-                                             chat_mode=user_db.get_user_attribute(user_id, "current_chat_mode")
-                                             )
+        answer, _ = await gpt_service.send_message(text, dialog_messages=[],
+                                                   chat_mode=user_db.get_user_attribute(user_id, "current_chat_mode"))
         await tip_message.delete()
         await query.message.reply_text(answer, parse_mode=ParseMode.HTML)
     else:
@@ -467,7 +466,7 @@ async def translate_handle(update, context, lang):
 
 
 async def dispatch_callback_handle(update: Update, context: CallbackContext):
-    await register_user_if_not_exists(update.callback_query, context, update.callback_query.from_user)
+    await register_user_if_not_exists(update, context, update.callback_query.from_user)
     query = update.callback_query
     if query.data.startswith("translate"):
         _, lang = query.data.split('|')
