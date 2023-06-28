@@ -101,7 +101,7 @@ def check_contain_code(check_str):
     """
     check if the str contains code
     """
-    return True if re.search(r'```.*```', check_str) else False
+    return True if re.search(r'`.*`', check_str) else False
 
 
 def get_main_lang(text):
