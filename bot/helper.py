@@ -47,6 +47,10 @@ def render_msg_with_code(msg):
     if '`' not in msg:
         return msg
     import re
+    if '<' in msg:
+        msg = msg.replace('<', '&lt;')
+    if '>' in msg:
+        msg = msg.replace('>', '&gt;')
     p2 = re.compile(r'```.*?```', re.S)
     r2 = re.findall(p2, msg)
     for r in r2:

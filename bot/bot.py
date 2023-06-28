@@ -184,6 +184,8 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         answer = await get_answer_from_ai(default_model.name, message, context=context_msg)
         message_id = update.message.message_id
         await tip_message.delete()
+        if '`' in answer:
+            answer = render_msg_with_code(answer)
         answer_msg = await context.bot.send_message(text=f"🗣\n\n{answer}", chat_id=update.message.chat_id,
                                                     reply_to_message_id=message_id, parse_mode=ParseMode.HTML)
         # if answer is not in chinese give translate options
