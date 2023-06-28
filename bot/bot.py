@@ -293,10 +293,12 @@ async def voice_message_handle(update: Update, context: CallbackContext):
             # send the recognised text
             text = 'You said: ' + recognized_text
             await update.message.reply_text(text, parse_mode=ParseMode.HTML)
-            answer, _ = await gpt_service.send_message(
-                recognized_text, dialog_messages=dialog_db.get_dialog_messages(user_id, dialog_id=None),
-                chat_mode=user_db.get_user_attribute(user_id, "current_chat_mode")
-            )
+            default_model = ai_model_db.get_default_model()
+            if default_model is None:
+                await update.message.reply_text("Please set default model first")
+                return
+            answer = await get_answer_from_ai(default_model.name, recognized_text,
+                                              context=dialog_db.get_dialog_messages(user_id, dialog_id=None))
             logger.info(f'chatgpt answered: {answer}')
             if check_contain_code(answer):
                 answer = render_msg_with_code(answer)

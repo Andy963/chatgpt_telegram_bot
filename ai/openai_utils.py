@@ -87,7 +87,6 @@ class OpenAIService:
         if chat_mode not in CHAT_MODES.keys():
             raise ValueError(f"Chat mode {chat_mode} is not supported")
 
-        n_dialog_messages_before = len(dialog_messages)
         answer = None
         while answer is None:
             try:
