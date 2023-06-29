@@ -44,9 +44,6 @@ def render_msg_with_code(msg):
     </pre>
     '''
     """
-    if '`' not in msg:
-        return msg
-    import re
     if '<' in msg:
         msg = msg.replace('<', '&lt;')
     if '>' in msg:
@@ -101,7 +98,7 @@ def check_contain_code(check_str):
     """
     check if the str contains code
     """
-    return True if re.search(r'`.*`', check_str) else False
+    return True if re.search(r'[`<>]', check_str) else False
 
 
 def get_main_lang(text):
