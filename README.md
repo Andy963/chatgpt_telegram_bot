@@ -40,7 +40,7 @@ for docker user:
 
 ```shell
 
-docker run -d  --name chatgpt -v /etc/gpt:/etc/gpt andy963/telegram_chatgpt_bot:latest
+docker run -d  --name chatgpt -v /etc/gpt:/etc/gpt andy963/telegram_ai_bot:latest
 ```
 
 TODO:
