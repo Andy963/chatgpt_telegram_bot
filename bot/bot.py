@@ -15,7 +15,7 @@ from bs4 import BeautifulSoup
 from pydub import AudioSegment
 from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
-from telegram.ext import CallbackContext
+from telegram.ext import CallbackContext, Application
 
 from ai import CHAT_MODES
 from config import config
@@ -41,6 +41,21 @@ HELP_MESSAGE = """Commands:
 
  
 """
+command_list = [('start', 'Starts the bot'),
+                ('help', 'Shows this help message'),
+                ('retry', 'Retry the last message'),
+                ('new', 'Start a new dialog'),
+                ('mode', 'Show current chat mode'),
+                ('prompt', 'List all prompts'),
+                ('model', 'List all models'),
+                ('user', 'List all users'),
+                ('export', 'Export all dialogs')
+                ]
+
+
+async def init_menu(app: Application) -> None:
+    """init menu commands"""
+    await app.bot.set_my_commands(command_list)
 
 
 async def register_user_if_not_exists(update: Update, context: CallbackContext, user: User):

@@ -1,40 +1,36 @@
 #!/usr/bin/python
 # coding:utf-8
-
 from telegram.ext import (
-    ApplicationBuilder,
     CommandHandler,
     MessageHandler,
     CallbackQueryHandler,
-    filters
+    filters, ApplicationBuilder
 )
 
 from bot.bot import start_handle, help_handle, message_handle, retry_handle, new_dialog_handle, show_chat_modes_handle, \
     set_chat_mode_handle, error_handle, voice_message_handle, photo_handle, dispatch_callback_handle, \
-    new_prompt_handle, list_prompt_handle, del_prompt_handle, export_handle, list_ai_model_handle, list_user_handle
+    list_prompt_handle, export_handle, list_ai_model_handle, list_user_handle, init_menu
 from config import config
+
+application = (
+    ApplicationBuilder()
+    .token(config.telegram_token)
+    .post_init(init_menu)
+    .build()
+)
 
 
 def run_bot() -> None:
-    application = (
-        ApplicationBuilder()
-        .token(config.telegram_token)
-        .build()
-    )
-
     # add handlers
     if len(config.allowed_telegram_usernames) == 0:
         user_filter = filters.ALL
     else:
         user_filter = filters.User(username=config.allowed_telegram_usernames)
-
     application.add_handler(CommandHandler("start", start_handle, filters=user_filter))
     application.add_handler(CommandHandler("help", help_handle, filters=user_filter))
     application.add_handler(CommandHandler("retry", retry_handle, filters=user_filter))
     application.add_handler(CommandHandler("new", new_dialog_handle, filters=user_filter))
-    application.add_handler(CommandHandler("np", new_prompt_handle, filters=user_filter))
-    application.add_handler(CommandHandler("lp", list_prompt_handle, filters=user_filter))
-    application.add_handler(CommandHandler("dp", del_prompt_handle, filters=user_filter))
+    application.add_handler(CommandHandler("prompt", list_prompt_handle, filters=user_filter))
     application.add_handler(CommandHandler("model", list_ai_model_handle, filters=user_filter))
     application.add_handler(CommandHandler("user", list_user_handle, filters=user_filter))
     application.add_handler(CommandHandler("mode", show_chat_modes_handle, filters=user_filter))
