@@ -394,8 +394,7 @@ async def photo_handle(update: Update, context: CallbackContext):
                       InlineKeyboardButton("ZH", callback_data=f"ocr|{name}|zh"),
                       InlineKeyboardButton("EN", callback_data=f"ocr|{name}|en"),
                       InlineKeyboardButton("Summary", callback_data=f"ocr|{name}|summary"),
-                      InlineKeyboardButton("Story", callback_data=f"ocr|{name}|story"),
-                      InlineKeyboardButton("Joke", callback_data=f"ocr|{name}|joke")]
+                      ]
             await update.message.reply_text("What do you want to do with the picture?",
                                             reply_to_message_id=update.message.message_id,
                                             reply_markup=InlineKeyboardMarkup([choice]))
@@ -431,10 +430,6 @@ async def ocr_handle(update: Update, context: CallbackContext):
             text = f"{text} Translate to {lang}"
         elif action_type == 'summary':
             text = f"{text} Summary the main point of this text in {text_main_lang}."
-        elif action_type == 'story':
-            text = f"{text} Tell me a story according to the text in {text_main_lang}."
-        elif action_type == 'joke':
-            text = f"{text} Tell me a joke according to the text in {text_main_lang}."
 
         answer, _ = await gpt_service.send_message(text, dialog_messages=[],
                                                    chat_mode=user_db.get_user_attribute(user_id, "current_chat_mode"))
@@ -485,6 +480,8 @@ async def dispatch_callback_handle(update: Update, context: CallbackContext):
         await prompt_handle(update, context)
     elif query.data.startswith('setModel'):
         await set_default_ai_model_handle(update, context)
+    elif query.data.startswith('toggleModel'):
+        await toggle_ai_model_handle(update, context)
     elif query.data.startswith('set_chat_mode'):
         await set_chat_mode_handle(update, context)
     elif query.data.startswith('m_user'):
@@ -601,10 +598,32 @@ async def list_ai_model_handle(update: Update, context: CallbackContext):
     text = "List All AI models \nHere are the available models (Click to change default model):\n"
 
     btns = InlineKeyboardMarkup([[InlineKeyboardButton(
-        f"{md.name} {'(default)' if md.is_default else ''}", callback_data=f'setModel|{md.name}')] for md in
+        f"{md.name} {'(default)' if md.is_default else ''}", callback_data=f'setModel|{md.name}'), InlineKeyboardButton(
+        "DISABLE" if md.is_available else "ENABLE", callback_data=f"toggleModel|{md.name}|{md.is_available}"
+    )] for md in
         models])
     await update.message.reply_text(text, reply_to_message_id=update.message.message_id,
                                     reply_markup=btns, parse_mode=ParseMode.HTML)
+
+
+async def toggle_ai_model_handle(update: Update, context: CallbackContext):
+    """toggle ai model available"""
+    user = update.callback_query.from_user
+    await register_user_if_not_exists(update, context, user)
+    user_obj = user_db.get_user_by_user_id(user.id)
+    if not user_obj or not user_obj.has_permission(Permission.ADMIN):
+        await update.message.reply_text("You don't have permission to do this")
+        return
+    ai_name, is_available = update.callback_query.data.split("|")[1:]
+    if is_available == "True":
+        # disable
+        ai_model_db.update_model(ai_name, is_available=False)
+        await context.bot.send_message(update.callback_query.message.chat_id,
+                                       f"Disable <b>{ai_name}</b> success.", parse_mode=ParseMode.HTML)
+    else:
+        ai_model_db.update_model(ai_name, is_available=True)
+        await context.bot.send_message(update.callback_query.message.chat_id,
+                                       f"Enable <b>{ai_name}</b> success.", parse_mode=ParseMode.HTML)
 
 
 async def set_default_ai_model_handle(update: Update, context: CallbackContext):

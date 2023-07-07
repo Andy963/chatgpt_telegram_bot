@@ -250,7 +250,7 @@ class ModelServices(Database):
         return self.session.query(AiModel).filter_by(name=name).first()
 
     def list_all_model(self):
-        return self.session.query(AiModel).filter_by(is_available=True).all()
+        return self.session.query(AiModel).all()
 
 
 class PromptServices(Database):
