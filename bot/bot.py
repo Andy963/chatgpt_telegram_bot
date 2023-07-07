@@ -25,22 +25,6 @@ from . import user_db, azure_service, dialog_db, gpt_service, ai_model_db, promp
     azure_openai_service, anthropic_service, role_db
 from .helper import check_contain_code, render_msg_with_code, get_main_lang, num_tokens_from_string
 
-# setup
-
-
-url_pattern = r'^http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
-HELP_MESSAGE = """Commands:
-⚪ /retry – Regenerate last bot answer
-⚪ /new – Start new dialog
-⚪ /mode – Select chat mode
-⚪ /help – Show help
-⚪ /np   – new prompt
-⚪ /lp   – List prompts
-⚪ /model   – List ai models 
-⚪ /export   – export history
-
- 
-"""
 command_list = [('start', 'Starts the bot'),
                 ('help', 'Shows this help message'),
                 ('retry', 'Retry the last message'),
@@ -51,6 +35,8 @@ command_list = [('start', 'Starts the bot'),
                 ('user', 'List all users'),
                 ('export', 'Export all dialogs')
                 ]
+
+HELP_MESSAGE = '\n'.join([f'/{command} - {description}' for command, description in command_list])
 
 
 async def init_menu(app: Application) -> None:
@@ -127,17 +113,18 @@ async def reply_voice(update, context, answer):
 async def start_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
+    logger.info(f"user_id: {user_id} start chat")
 
     user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
     dialog_db.start_new_dialog(user_id)
 
-    reply_text = "Hi! I'm <b>ChatGPT</b> bot implemented with GPT-3.5 OpenAI API 🤖\n\n"
+    reply_text = "Hi! I'm An AI bot implemented with GPT API 🤖\n\n"
     reply_text += HELP_MESSAGE
 
     reply_text += "\nAnd now... ask me anything!"
 
-    await update.message.reply_text(reply_text)
+    await update.message.reply_text(reply_text, parse_mode=ParseMode.HTML)
 
 
 async def help_handle(update: Update, context: CallbackContext):
@@ -184,9 +171,8 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             dialog_db.start_new_dialog(user_id=str(user_id))
             await update.message.reply_text("Starting new dialog due to timeout ⌛️")
     user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
-
+    answer = None
     try:
-
         default_model = ai_model_db.get_default_model()
         if default_model is None:
             await update.message.reply_text("Please set default model first")
@@ -222,6 +208,8 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
     except Exception as e:
         error_text = f"Sth went wrong: {e}"
         logger.error(f" error stack: {traceback.format_exc()}")
+        if answer is not None:
+            logger.info(f'when exception occur the answer is: {answer}')
         # if error reply all the message rapidly
         await update.message.reply_text(error_text)
         return

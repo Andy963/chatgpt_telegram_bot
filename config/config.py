@@ -8,6 +8,10 @@ config_dir = Path('/etc/aibot')
 with open(config_dir / "config.yml", 'r') as f:
     config_yaml = yaml.safe_load(f)
 
+log_dir = Path('/etc/aibot/aibot.log')
+if not log_dir.exists():
+    log_dir.touch()
+
 # config parameters
 telegram_token = config_yaml.get("telegram_token")
 allowed_telegram_usernames = config_yaml.get("allowed_telegram_usernames", [])
@@ -37,4 +41,4 @@ claude_api_key = config_yaml.get('claude_api_key', None)
 ai_models = config_yaml.get("ai_models", None)
 
 root_user_id = config_yaml.get("root_user_id", None)  # set telegram user admin
-log = '/etc/aibot/ai.log'
+log = '/etc/aibot/aibot.log'

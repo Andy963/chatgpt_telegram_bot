@@ -45,18 +45,17 @@ class FileSplitLogger:
             sh = logging.StreamHandler()  # 往屏幕上输出
             sh.setFormatter(format_str)  # 设置屏幕上显示的格式
             self.logger.addHandler(sh)  # 把对象加到logger里
-        if not self.logger.handlers:  # 防止多个handler,导致多次打印相同内容
-            self.logger.addHandler(fs)
+        self.logger.addHandler(fs)
 
     def __call__(self):
         return self.logger
 
 
-fs = FileSplitLogger(filename=config.log, level='debug', to_stream=True)
-logger = fs()
+fs = FileSplitLogger(filename=config.log, level='debug', to_stream=True)()
 if os.environ.get('is_console'):
-    logger.removeHandler(logger.handlers[1])  # 移除流输出handler
+    fs.removeHandler(fs.handlers[1])  # 移除流输出handler
 else:
-    logger.removeHandler(logger.handlers[0])  # 移除文件handler
+    fs.removeHandler(fs.handlers[0])  # 移除文件handler
+logger = fs
 if __name__ == '__main__':
     logger = FileSplitLogger('./test.log', 'debug', max_bytes=100, )()
