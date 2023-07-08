@@ -54,7 +54,7 @@ def render_msg_with_code(msg):
         lang = r.split('\n')[0].split('```')[1]
         msg = re.sub(f'```{lang}(.*?)```', rf'<code>\1</code>', msg, flags=re.S)
     # resolve <img > tag
-    msg = re.sub(r'<img src="(.*?)".*>',r'![](\1)', msg, flags=re.S )
+    msg = re.sub(r'<img src="(.*?)".*>', r'![](\1)', msg, flags=re.S)
     return msg
 
 
