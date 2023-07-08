@@ -52,7 +52,9 @@ def render_msg_with_code(msg):
     r2 = re.findall(p2, msg)
     for r in r2:
         lang = r.split('\n')[0].split('```')[1]
-        msg = re.sub(f'```{lang}(.*?)```', rf'<pre><code>\1</code></pre>', msg, flags=re.S)
+        msg = re.sub(f'```{lang}(.*?)```', rf'<code>\1</code>', msg, flags=re.S)
+    # resolve <img > tag
+    msg = re.sub(r'<img src="(.*?)".*>',r'![](\1)', msg, flags=re.S )
     return msg
 
 
@@ -98,7 +100,7 @@ def check_contain_code(check_str):
     """
     check if the str contains code
     """
-    return True if re.search(r'[`<>]', check_str) else False
+    return True if re.search(r'`.*`', check_str) else False
 
 
 def get_main_lang(text):
