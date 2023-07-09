@@ -175,6 +175,8 @@ class DialogServices(Database):
             dialog = self.session.query(Dialog).filter_by(user_id=user_obj.user_id, dialog_id=dialog_id,
                                                           ai_model=ai_model_obj).first()
         if dialog is not None:
+            if len(dialog.messages) > 10:
+                return dialog.messages[-5:]
             return dialog.messages
         else:
             return []
