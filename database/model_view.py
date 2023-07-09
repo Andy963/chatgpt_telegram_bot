@@ -56,7 +56,8 @@ class UserServices(Database):
         """
         return self.session.query(User).filter_by(user_id=user_id).count() > 0
 
-    def add_new_user(self, user_id: str, chat_id: int, username: str = "", first_name: str = "", last_name: str = "",
+    def add_new_user(self, user_id: str, chat_id: int, username: str = "",
+                     first_name: str = "", last_name: str = "",
                      role_id: int = 0):
         """Add new user to database if not exists
         """
@@ -64,7 +65,8 @@ class UserServices(Database):
             if role_id == 0:
                 role_id = RoleServices(self._engine).get_default_role().id
             with self as session:
-                user = User(**{'user_id': user_id, 'chat_id': chat_id, 'username': username, 'first_name': first_name,
+                user = User(**{'user_id': user_id, 'chat_id': chat_id,
+                               'username': username, 'first_name': first_name,
                                'last_name': last_name, 'role_id': role_id})
                 session.add(user)
         else:
@@ -78,7 +80,8 @@ class UserServices(Database):
         try:
             user = self.session.query(User).filter_by(user_id=user_id).first()
             if not hasattr(user, key):
-                raise ValueError(f"User {user_id} does not have a value for {key}")
+                raise ValueError(
+                    f"User {user_id} does not have a value for {key}")
             return getattr(user, key)
         except NoResultFound:
             return None
@@ -121,7 +124,8 @@ class UserServices(Database):
     def init_root_user(self):
         with self as session:
             role_id = session.query(Role).filter_by(name='Root').first().id
-            user = session.query(User).filter_by(user_id=config.root_user_id).first()
+            user = session.query(User).filter_by(
+                user_id=config.root_user_id).first()
             if user:
                 if role_id and user.role_id != role_id:
                     user.role_id = role_id
@@ -131,11 +135,13 @@ class UserServices(Database):
 
     def is_admin(self, user_id: str):
         # admin user will not consume api count
-        return self.session.query(User).filter_by(user_id=user_id).first().role.has_permission(Permission.ADMIN)
+        return self.session.query(User).filter_by(
+            user_id=user_id).first().role.has_permission(Permission.ADMIN)
 
     def is_root(self, user_id: str):
         # root user will not consume api count
-        return self.session.query(User).filter_by(user_id=user_id).first().role.has_permission(Permission.ROOT)
+        return self.session.query(User).filter_by(
+            user_id=user_id).first().role.has_permission(Permission.ROOT)
 
     def consume_api_count(self, user_id: str):
         with self as session:
@@ -153,30 +159,34 @@ class DialogServices(Database):
         """Start a new dialog for user"""
         with self as session:
             user = session.query(User).filter_by(user_id=user_id).first()
-            ai_models = session.query(AiModel).filter_by(is_available=True).all()
-            dialog_list = []
-            for ai in ai_models:
-                dialog = Dialog(
-                    **{'dialog_id': str(uuid.uuid4()), 'user_id': user_id, 'chat_mode': user.current_chat_mode,
-                       'start_time': datetime.now(), 'messages': [], "ai_model": ai})
-                dialog_list.append(dialog)
-            session.add_all(dialog_list)
-            default_model = session.query(AiModel).filter_by(is_default=True).first()
-            return session.query(Dialog).filter_by(user_id=user_id, ai_model=default_model).first()
+            ai = session.query(AiModel).filter_by(is_default=True).first()
+            dialog = Dialog(
+                **{'dialog_id': str(uuid.uuid4()), 'user_id': user_id,
+                   'chat_mode': user.current_chat_mode,
+                   'start_time': datetime.now(), 'messages': [],
+                   "ai_model": ai})
+            session.add(dialog)
+            return session.query(Dialog).filter_by(user_id=user_id,
+                                                   ai_model=ai).first()
 
-    def get_dialog_messages(self, user_id: str, dialog_id: Optional[str] = None, ai_model: str = "ChatGpt"):
+    def get_dialog_messages(self, user_id: str, dialog_id: Optional[str] = None,
+                            ai_model: str = "ChatGpt"):
         """Get dialog messages for user"""
         user_obj = self.session.query(User).filter_by(user_id=user_id).first()
-        ai_model_obj = self.session.query(AiModel).filter_by(name=ai_model).first()
+        ai_model_obj = self.session.query(AiModel).filter_by(
+            name=ai_model).first()
         if dialog_id is None:
-            dialog = self.session.query(Dialog).filter_by(user_id=user_obj.user_id, ai_model=ai_model_obj).order_by(
+            dialog = self.session.query(Dialog).filter_by(
+                user_id=user_obj.user_id, ai_model=ai_model_obj).order_by(
                 desc(Dialog.id)).first()
         else:
-            dialog = self.session.query(Dialog).filter_by(user_id=user_obj.user_id, dialog_id=dialog_id,
-                                                          ai_model=ai_model_obj).first()
+            dialog = self.session.query(Dialog).filter_by(
+                user_id=user_obj.user_id, dialog_id=dialog_id,
+                ai_model=ai_model_obj).first()
+        # reduce the messages length
         if dialog is not None:
-            if len(dialog.messages) > 10:
-                return dialog.messages[-5:]
+            if len(dialog.messages) > 10 or len(''.join(dialog.messages)) > 3000:
+                return dialog.messages[-8:]
             return dialog.messages
         else:
             return []
@@ -199,9 +209,11 @@ class DialogServices(Database):
 
     def set_dialog_messages(self, user_id: str, dialog_messages: list,
                             ai_model: str = "ChatGpt"):
-        ai_model_obj = self.session.query(AiModel).filter_by(name=ai_model).first()
+        ai_model_obj = self.session.query(AiModel).filter_by(
+            name=ai_model).first()
         user_obj = self.session.query(User).filter_by(user_id=user_id).first()
-        dialog_obj = self.session.query(Dialog).filter_by(user_id=user_id, ai_model=ai_model_obj).order_by(
+        dialog_obj = self.session.query(Dialog).filter_by(user_id=user_id,
+                                                          ai_model=ai_model_obj).order_by(
             desc(Dialog.id)).first()
         if dialog_obj is None:
             dialog_id = str(uuid.uuid4())
@@ -225,23 +237,28 @@ class ModelServices(Database):
         # init models from config available models
         models = config.ai_models.split(' ')
         for index, model_name in enumerate(models, 1):
-            self.add_new_model(model_name, is_default=model_name == 'Claude', is_available=True)
+            self.add_new_model(model_name, is_default=model_name == 'Claude',
+                               is_available=True)
 
     def get_available_models(self):
-        return [m.name for m in self.session.query(AiModel).filter_by(is_available=True).all()]
+        return [m.name for m in
+                self.session.query(AiModel).filter_by(is_available=True).all()]
 
     def get_default_model(self):
         return self.session.query(AiModel).filter_by(is_default=True).first()
 
-    def add_new_model(self, name: str, is_default: bool = False, is_available: bool = True):
+    def add_new_model(self, name: str, is_default: bool = False,
+                      is_available: bool = True):
         with self as session:
-            session.add(AiModel(**{'name': name, 'is_default': is_default, 'is_available': is_available}))
+            session.add(AiModel(**{'name': name, 'is_default': is_default,
+                                   'is_available': is_available}))
 
     def del_model(self, name: str):
         with self as session:
             session.query(AiModel).filter_by(name=name).delete()
 
-    def update_model(self, name: str, is_default: bool = False, is_available: bool = True):
+    def update_model(self, name: str, is_default: bool = False,
+                     is_available: bool = True):
         with self as session:
             model = session.query(AiModel).filter_by(name=name).first()
             model.is_default = is_default

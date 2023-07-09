@@ -183,7 +183,6 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             dialog_db.start_new_dialog(user_id=str(user_id))
             await update.message.reply_text(
                 "Starting new dialog due to timeout ⌛️")
-    user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
     answer = None
     try:
         default_model = ai_model_db.get_default_model()
@@ -206,6 +205,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
                                                     chat_id=update.message.chat_id,
                                                     reply_to_message_id=message_id,
                                                     parse_mode=ParseMode.HTML)
+        user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
         # if answer is not in chinese give translate options
         if not re.search(r'[\u4e00-\u9fff]+', answer):
             translate_choice = [InlineKeyboardButton("请帮我翻译成中文󠁧󠁢󠁥󠁮󠁧󠁿",
