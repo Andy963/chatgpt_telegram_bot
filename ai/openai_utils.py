@@ -11,6 +11,7 @@ import openai
 
 from ai import CHAT_MODES
 from config import config
+from logs.log import logger
 
 
 class OpenAIService:
@@ -23,10 +24,11 @@ class OpenAIService:
     }
 
     support_models = {'chatgpt': ['gpt-3.5-turbo'],
-                      'azure': ['gpt-35-turbo']
+                      'azure': ['gpt-35-turbo', 'gpt-35-turbo-16k']
                       }
 
-    def __init__(self, model_name: str = 'gpt-3.5-turbo', api_type: str = 'chatgpt', **kwargs):
+    def __init__(self, model_name: str = 'gpt-3.5-turbo',
+                 api_type: str = 'chatgpt', **kwargs):
         """
         use gpt-3.5-turbo by default
         """
@@ -78,27 +80,23 @@ class OpenAIService:
         messages.append({"role": "user", "content": message})
         return messages
 
-    async def send_message(self, message, dialog_messages=None, chat_mode="assistant"):
+    async def send_message(self, message, dialog_messages=None,
+                           chat_mode="assistant"):
         """
-        Send message to ask openai, same as send_message_stream, but not use stream mode
+        Send message to ask openai, same as send_message_stream, but not use
+        stream mode
         """
         if dialog_messages is None:
             dialog_messages = []
         if chat_mode not in CHAT_MODES.keys():
             raise ValueError(f"Chat mode {chat_mode} is not supported")
 
-        answer = None
-        while answer is None:
-            try:
-                messages = self._generate_msg(message, dialog_messages, chat_mode)
-                r = openai.ChatCompletion.create(**self.gen_options(messages))
-                answer = r.choices[0].message["content"]
-            except openai.error.InvalidRequestError as e:  # too many tokens
-                if len(dialog_messages) == 0:
-                    raise ValueError(
-                        "Dialog messages is reduced to zero, but still has too many tokens to make completion") from e
-                # forget first message in dialog_messages
-                elif len(dialog_messages) >= 20:
-                    dialog_messages = dialog_messages[1:]
+        try:
+            messages = self._generate_msg(message, dialog_messages, chat_mode)
+            r = openai.ChatCompletion.create(**self.gen_options(messages))
+            answer = r.choices[0].message["content"]
+        except Exception as e:
+            logger.error(f"error:\n\n ask: {message} \n with error {e}")
+            answer = f"sth went wrong"
 
         return answer
