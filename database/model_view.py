@@ -185,7 +185,7 @@ class DialogServices(Database):
                 ai_model=ai_model_obj).first()
         # reduce the messages length
         if dialog is not None:
-            if len(dialog.messages) > 10 or len(''.join(dialog.messages)) > 3000:
+            if len(dialog.messages) > 10:
                 return dialog.messages[-8:]
             return dialog.messages
         else:

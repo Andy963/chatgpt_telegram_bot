@@ -198,6 +198,13 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         answer = await get_answer_from_ai(default_model.name, message,
                                           context=context_msg)
         message_id = update.message.message_id
+        if not answer:
+            await context.bot.send_message(text="AI returns Noting",
+                                           chat_id=update.message.chat_id,
+                                           reply_to_message_id=message_id,
+                                           parse_mode=ParseMode.HTML,
+                                           disable_notification=True)
+            return
         await tip_message.delete()
         if check_contain_code(answer):
             answer = render_msg_with_code(answer)
