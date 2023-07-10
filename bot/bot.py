@@ -71,7 +71,6 @@ async def reply_voice(update, context, answer):
         try:
             with wave.open(audio_file, 'rb') as f:
                 # Get the audio file parameters
-                sample_width = f.getsampwidth()
                 frame_rate = f.getframerate()
                 num_frames = f.getnframes()
 
@@ -80,7 +79,8 @@ async def reply_voice(update, context, answer):
                 logger.info(f'audio duration: {audio_duration}')
 
                 # Split the audio into segments of maximum duration (in seconds)
-                max_duration = 59.0  # Telegram maximum audio duration is 1 minute
+                # Telegram maximum audio duration is 1 minute
+                max_duration = 59.0
                 num_segments = int(math.ceil(audio_duration / max_duration))
                 logger.info(f'audio segments num: {num_segments}')
                 for i in range(num_segments):
@@ -94,7 +94,9 @@ async def reply_voice(update, context, answer):
                     segment_data = f.readframes(end_frame - start_frame)
 
                     # Write the segment data to a temporary file
-                    segment_filename = f'segment_{random.sample(string.ascii_letters + string.digits, 6)}.ogg'
+                    random_str = random.sample(
+                        string.ascii_letters + string.digits, 6)
+                    segment_filename = f'segment_{random_str}.ogg'
                     with wave.open(segment_filename, 'wb') as segment_file:
                         segment_file.setparams(f.getparams())
                         segment_file.writeframes(segment_data)
@@ -154,8 +156,8 @@ async def retry_handle(update: Update, context: CallbackContext):
         return
 
     last_dialog_message = dialog_messages.pop()
-    dialog_db.set_dialog_messages(user_id,
-                                  dialog_messages)  # last message was removed from the context
+    # last message was removed from the context
+    dialog_db.set_dialog_messages(user_id, dialog_messages)
 
     await message_handle(update, context, message=last_dialog_message["user"],
                          use_new_dialog_timeout=False)
@@ -209,10 +211,12 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         await tip_message.delete()
         if check_contain_code(answer):
             answer = render_msg_with_code(answer)
-        answer_msg = await context.bot.send_message(text=f"🗣\n\n{answer}",
-                                                    chat_id=update.message.chat_id,
-                                                    reply_to_message_id=message_id,
-                                                    parse_mode=ParseMode.HTML)
+        answer_msg = await context.bot.send_message(
+            text=f"🗣\n\n{answer}",
+            chat_id=update.message.chat_id,
+            reply_to_message_id=message_id,
+            parse_mode=ParseMode.HTML,
+            disable_notification=True)
         user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
         # if answer is not in chinese give translate options
         if not re.search(r'[\u4e00-\u9fff]+', answer):
@@ -242,7 +246,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         if "unsupported start tag" in str(e.message):
             logger.info(f'when exception occur the answer is:\n {answer}')
             index = int(re.findall(r'at byte offset (\d+)', e.message)[0])
-            logger.error(f"Near error is : {answer[index-10:index+10]}")
+            logger.error(f"Near error is : {answer[index - 10:index + 10]}")
     except Exception as e:
         error_text = f"Sth went wrong: {e}"
         logger.error(f" error stack: {traceback.format_exc()}")
@@ -305,7 +309,8 @@ async def url_link_handle(update: Update, context: CallbackContext):
 
 
 async def get_answer_from_ai(ai_name: str, message: str, context: list):
-    """Get answer from ai model. no matter chatgpt or azure openai, or palm2 etc."""
+    """Get answer from ai model. no matter chatgpt or azure openai,
+    or palm2 etc."""
     answer = None
     ai_name = ai_name.lower()
     if 'chatgpt' in ai_name:
@@ -348,10 +353,10 @@ async def voice_message_handle(update: Update, context: CallbackContext):
                 await update.message.reply_text(
                     "Please set default model first")
                 return
-            answer = await get_answer_from_ai(default_model.name,
-                                              recognized_text,
-                                              context=dialog_db.get_dialog_messages(
-                                                  user_id, dialog_id=None))
+            answer = await get_answer_from_ai(
+                default_model.name,
+                recognized_text,
+                context=dialog_db.get_dialog_messages(user_id, dialog_id=None))
             logger.info(f'chatgpt answered: {answer}')
             if check_contain_code(answer):
                 answer = render_msg_with_code(answer)
@@ -370,11 +375,11 @@ async def voice_message_handle(update: Update, context: CallbackContext):
             new_dialog_message = {"user": recognized_text, "assistant": answer,
                                   "date": datetime.now().strftime(
                                       "%Y-%m-%d %H:%M:%s")}
-            dialog_db.set_dialog_messages(user_id,
-                                          dialog_db.get_dialog_messages(user_id,
-                                                                        dialog_id=None) + [
-                                              new_dialog_message]
-                                          )
+            dialog_db.set_dialog_messages(
+                user_id,
+                dialog_db.get_dialog_messages(
+                    user_id, dialog_id=None) + [new_dialog_message]
+            )
 
     except Exception as e:
         error_text = f"Sth went wrong: {e}"
@@ -408,8 +413,9 @@ async def show_chat_modes_handle(update: Update, context: CallbackContext):
 
     keyboard = []
     for chat_mode, chat_mode_dict in CHAT_MODES.items():
-        keyboard.append([InlineKeyboardButton(chat_mode_dict["name"],
-                                              callback_data=f"set_chat_mode|{chat_mode}")])
+        keyboard.append([InlineKeyboardButton(
+            chat_mode_dict["name"],
+            callback_data=f"set_chat_mode|{chat_mode}")])
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text("Select chat mode:",
@@ -453,8 +459,9 @@ async def photo_handle(update: Update, context: CallbackContext):
     name = f"{update.message.chat_id}_{int(time.time())}.jpg"
     logger.info(f'filename:{name}')
     try:
+        # give choice to ocr or ocr and translate to chinese
+        # or ocr and translate to english
         if update.message.photo:
-            # give choice to ocr or ocr and translate to chinese or ocr and translate to english
             choice = [
                 InlineKeyboardButton("OCR", callback_data=f"ocr|{name}|None"),
                 InlineKeyboardButton("ZH", callback_data=f"ocr|{name}|zh"),
@@ -499,10 +506,9 @@ async def ocr_handle(update: Update, context: CallbackContext):
         elif action_type == 'summary':
             text = f"{text} Summary the main point of this text in {text_main_lang}."
 
-        answer, _ = await gpt_service.send_message(text, dialog_messages=[],
-                                                   chat_mode=user_db.get_user_attribute(
-                                                       user_id,
-                                                       "current_chat_mode"))
+        answer, _ = await gpt_service.send_message(
+            text, dialog_messages=[],
+            chat_mode=user_db.get_user_attribute(user_id, "current_chat_mode"))
         await tip_message.delete()
         await query.message.reply_text(answer, parse_mode=ParseMode.HTML)
     else:
@@ -532,10 +538,11 @@ async def translate_handle(update, context, lang):
     text = query.message.reply_to_message.text.replace('🗣:', '', 1)
     translated_text = azure_service.translate(text=text,
                                               target_lang=target_lang)
-    await context.bot.send_message(text=f"{translated_text}",
-                                   chat_id=query.message.chat_id,
-                                   reply_to_message_id=query.message.reply_to_message.message_id,
-                                   parse_mode=ParseMode.HTML)
+    await context.bot.send_message(
+        text=f"{translated_text}",
+        chat_id=query.message.chat_id,
+        reply_to_message_id=query.message.reply_to_message.message_id,
+        parse_mode=ParseMode.HTML)
 
 
 async def dispatch_callback_handle(update: Update, context: CallbackContext):
@@ -627,16 +634,21 @@ async def manage_user_handle(update: Update, context: CallbackContext):
     text = f"{'👑' if is_admin else '👤'}{cur_user.username if cur_user.username else 'Nobody'} \
     id:{cur_user.user_id} (API COUNT:{cur_user.api_count}  TOTAL:{cur_user.total_api_count})"
     btns = InlineKeyboardMarkup(
-        [[InlineKeyboardButton("ADD API 50",
-                               callback_data=f"add_api_count|{cur_user.user_id}|{50}"),
-          InlineKeyboardButton("ADD API 100",
-                               callback_data=f"add_api_count|{cur_user.user_id}|{100}"),
-          InlineKeyboardButton("ADD API 500",
-                               callback_data=f"add_api_count|{cur_user.user_id}|{500}"),
-          ], [InlineKeyboardButton("BLOCK CURRENT USER",
-                                   callback_data=f"add_api_count|{cur_user.user_id}|{0}"),
-              InlineKeyboardButton("SET AS ADMIN",
-                                   callback_data=f"admin_user|{cur_user.user_id}"), ]])
+        [[InlineKeyboardButton(
+            "ADD API 50",
+            callback_data=f"add_api_count|{cur_user.user_id}|{50}"),
+            InlineKeyboardButton(
+                "ADD API 100",
+                callback_data=f"add_api_count|{cur_user.user_id}|{100}"),
+            InlineKeyboardButton(
+                "ADD API 500",
+                callback_data=f"add_api_count|{cur_user.user_id}|{500}"),
+        ], [InlineKeyboardButton(
+            "BLOCK CURRENT USER",
+            callback_data=f"add_api_count|{cur_user.user_id}|{0}"),
+            InlineKeyboardButton(
+                "SET AS ADMIN",
+                callback_data=f"admin_user|{cur_user.user_id}"), ]])
     await context.bot.send_message(
         chat_id=update.callback_query.message.chat_id,
         text=text, reply_markup=btns, parse_mode=ParseMode.HTML)
@@ -696,10 +708,11 @@ async def list_ai_model_handle(update: Update, context: CallbackContext):
         callback_data=f"toggleModel|{md.name}|{md.is_available}"
     )] for md in
         models])
-    await update.message.reply_text(text,
-                                    reply_to_message_id=update.message.message_id,
-                                    reply_markup=btns,
-                                    parse_mode=ParseMode.HTML)
+    await update.message.reply_text(
+        text,
+        reply_to_message_id=update.message.message_id,
+        reply_markup=btns,
+        parse_mode=ParseMode.HTML)
 
 
 async def toggle_ai_model_handle(update: Update, context: CallbackContext):
@@ -735,9 +748,10 @@ async def set_default_ai_model_handle(update: Update, context: CallbackContext):
     ai_name = update.callback_query.data.split("|")[1]
     ai_model_db.update_model(ai_name, is_default=True)
 
-    await context.bot.send_message(update.callback_query.message.chat_id,
-                                   f"Set <b>{ai_name}</b> as default model success.",
-                                   parse_mode=ParseMode.HTML)
+    await context.bot.send_message(
+        update.callback_query.message.chat_id,
+        f"Set <b>{ai_name}</b> as default model success.",
+        parse_mode=ParseMode.HTML)
 
 
 async def list_prompt_handle(update: Update, context: CallbackContext) -> None:
@@ -751,10 +765,11 @@ async def list_prompt_handle(update: Update, context: CallbackContext) -> None:
     btns = InlineKeyboardMarkup([[InlineKeyboardButton(
         f"{prompt.id} {prompt.short_desc}",
         callback_data=f'prompt|{prompt.id}')] for prompt in prompts])
-    await update.message.reply_text(text,
-                                    reply_to_message_id=update.message.message_id,
-                                    reply_markup=btns,
-                                    parse_mode=ParseMode.HTML)
+    await update.message.reply_text(
+        text,
+        reply_to_message_id=update.message.message_id,
+        reply_markup=btns,
+        parse_mode=ParseMode.HTML)
 
 
 async def new_prompt_handle(update: Update, context: CallbackContext):
