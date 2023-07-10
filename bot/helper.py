@@ -45,20 +45,19 @@ def render_msg_with_code(msg):
     </pre>
     '''
     """
-
-    p2 = re.compile(r'```.*?```', re.S)
-    r2 = re.findall(p2, msg)
-    for r in r2:
-        lang = r.split('\n')[0].split('```')[1]
-        msg = re.sub(f'```{lang}(.*?)```', rf'<code>\1</code>', msg, flags=re.S)
-    # resolve <img > tag
-    msg = re.sub(r'<img src="(.*?)".*>', r'![](\1)', msg, flags=re.S)
-    # resolve `` code
-    msg = re.sub(r'`(\w+)`', r'<code>\1</code>', msg, flags=re.S)
     if '<' in msg:
         msg = msg.replace('<', '&lt;')
     if '>' in msg:
         msg = msg.replace('>', '&gt;')
+    p2 = re.compile(r'```.*?```', re.S)
+    r2 = re.findall(p2, msg)
+    for r in r2:
+        lang = r.split('\n')[0].split('```')[1]
+        msg = re.sub(f'```{lang}(.*?)```', r'<code>\1</code>', msg, flags=re.S)
+    # resolve <img > tag
+    msg = re.sub(r'<img src="(.*?)".*>', r'![](\1)', msg, flags=re.S)
+    # resolve `` code
+    msg = re.sub(r'`(\w+)`', r'<pre>\1</pre>', msg, flags=re.S)
     return msg
 
 

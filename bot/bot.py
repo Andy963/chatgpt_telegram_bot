@@ -15,6 +15,7 @@ from bs4 import BeautifulSoup
 from pydub import AudioSegment
 from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from telegram.ext import CallbackContext, Application
 
 from ai import CHAT_MODES
@@ -236,6 +237,12 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             ai_model="ChatGpt")
 
         user_db.consume_api_count(user_id)
+    except BadRequest as e:
+        # Can't parse entities: unsupported start tag "=" at byte offset 1267
+        if "unsupported start tag" in str(e.message):
+            logger.info(f'when exception occur the answer is:\n {answer}')
+            index = int(re.findall(r'at byte offset (\d+)', e.message)[0])
+            logger.error(f"Near error is : {answer[index-10:index+10]}")
     except Exception as e:
         error_text = f"Sth went wrong: {e}"
         logger.error(f" error stack: {traceback.format_exc()}")
