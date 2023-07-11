@@ -11,8 +11,7 @@ import google.generativeai as palm
 
 
 class GoogleAIService:
-
-    def __init__(self, api_key: str, model_name='models/chat-bison-001'):
+    def __init__(self, api_key: str, model_name="models/chat-bison-001"):
         self.model = model_name
         palm.configure(api_key=api_key)
 
@@ -47,7 +46,13 @@ class GoogleAIService:
             dialog_messages = []
 
         context = self.gen_context(message, dialog_messages)
-        response = palm.chat(model=self.model, messages=message, context=context, examples=examples, candidate_count=1)
+        response = palm.chat(
+            model=self.model,
+            messages=message,
+            context=context,
+            examples=examples,
+            candidate_count=1,
+        )
         answer = response.last
         return answer
 
@@ -56,10 +61,10 @@ class GoogleAIService:
         """generate context"""
         context = []
         if not dialog_message:
-            context.append('Try your best to help me!\n')
+            context.append("Try your best to help me!\n")
         for msg in dialog_message:
             context.append(f'User said: {msg["user"]}\n')
             context.append(f'Your answer is:  {msg["assistant"]}\n')
-        context.append(f'User said: {message}\n')
+        context.append(f"User said: {message}\n")
 
-        return ''.join(context)
+        return "".join(context)

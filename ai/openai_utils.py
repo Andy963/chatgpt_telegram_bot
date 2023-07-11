@@ -20,15 +20,17 @@ class OpenAIService:
         "max_tokens": 1000,
         "top_p": 1,
         "frequency_penalty": 0,
-        "presence_penalty": 0
+        "presence_penalty": 0,
     }
 
-    support_models = {'chatgpt': ['gpt-3.5-turbo'],
-                      'azure': ['gpt-35-turbo', 'gpt-35-turbo-16k']
-                      }
+    support_models = {
+        "chatgpt": ["gpt-3.5-turbo"],
+        "azure": ["gpt-35-turbo", "gpt-35-turbo-16k"],
+    }
 
-    def __init__(self, model_name: str = 'gpt-3.5-turbo',
-                 api_type: str = 'chatgpt', **kwargs):
+    def __init__(
+        self, model_name: str = "gpt-3.5-turbo", api_type: str = "chatgpt", **kwargs
+    ):
         """
         use gpt-3.5-turbo by default
         """
@@ -36,17 +38,16 @@ class OpenAIService:
         self.api_type = api_type
 
     def gen_options(self, messages):
-        """Generate options for openai
-        """
+        """Generate options for openai"""
         if self.model_name not in self.support_models[self.api_type]:
             raise ValueError(f"Model {self.model_name} is not supported")
 
-        if self.api_type == 'chatgpt':
+        if self.api_type == "chatgpt":
             opts = {
                 "model": self.model_name,
                 "messages": messages,
                 "api_key": config.openai_api_key,
-                **self.OPENAI_COMPLETION_OPTIONS
+                **self.OPENAI_COMPLETION_OPTIONS,
             }
         else:
             opts = {
@@ -56,7 +57,7 @@ class OpenAIService:
                 "api_base": config.azure_openai_endpoint,
                 "api_version": config.azure_openai_api_version,
                 "api_key": config.azure_openai_api_key,
-                **self.OPENAI_COMPLETION_OPTIONS
+                **self.OPENAI_COMPLETION_OPTIONS,
             }
         return opts
 
@@ -80,8 +81,7 @@ class OpenAIService:
         messages.append({"role": "user", "content": message})
         return messages
 
-    async def send_message(self, message, dialog_messages=None,
-                           chat_mode="assistant"):
+    async def send_message(self, message, dialog_messages=None, chat_mode="assistant"):
         """
         Send message to ask openai, same as send_message_stream, but not use
         stream mode

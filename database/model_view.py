@@ -73,8 +73,8 @@ class UserServices(Database):
             raise Exception('user already exists')
 
     def get_user_attribute(self, user_id: str, key: str):
-        """Do Not use check if user exists before calling this method or it query the database twice,
-        use try except instead
+        """Do Not use check if user exists before calling this method or
+        it query the database twice, use try except instead
         get user's attribute by key
         """
         try:

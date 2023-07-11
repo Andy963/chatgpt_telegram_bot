@@ -12,7 +12,7 @@ from ai import CHAT_MODES
 
 
 class AnthropicAIService:
-    def __init__(self, api_key: str, model_name: str = 'claude-1-100k', **kwargs):
+    def __init__(self, api_key: str, model_name: str = "claude-1-100k", **kwargs):
         self.model_name = model_name
         self.claude = anthropic.Client(api_key)
 
@@ -54,7 +54,7 @@ class AnthropicAIService:
                     model="claude-1-100k",
                     max_tokens_to_sample=10000,
                 )
-                answer = resp['completion']
+                answer = resp["completion"]
             except Exception as e:
                 answer = f"claude error: {e}"
 

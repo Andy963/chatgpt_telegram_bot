@@ -4,11 +4,19 @@ from ai.openai_utils import OpenAIService
 from bot.helper import AzureService
 from config import config
 from database import engine
-from database.model_view import UserServices, DialogServices, ModelServices, PromptServices, RoleServices
+from database.model_view import (
+    UserServices,
+    DialogServices,
+    ModelServices,
+    PromptServices,
+    RoleServices,
+)
 
 azure_service = AzureService()
-gpt_service = OpenAIService(model_name=config.openai_engine, api_type='chatgpt')
-azure_openai_service = OpenAIService(model_name=config.azure_openai_engine, api_type='azure')
+gpt_service = OpenAIService(model_name=config.openai_engine, api_type="chatgpt")
+azure_openai_service = OpenAIService(
+    model_name=config.azure_openai_engine, api_type="azure"
+)
 palm_service = GoogleAIService(api_key=config.palm_api_key)
 anthropic_service = AnthropicAIService(api_key=config.claude_api_key)
 
