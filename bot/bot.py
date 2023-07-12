@@ -551,16 +551,17 @@ async def ocr_handle(update: Update, context: CallbackContext):
         elif action_type == "summary":
             text = f"{text} Summary the main point of this text in {text_main_lang}."
 
-        answer, _ = await gpt_service.send_message(
-            text,
-            dialog_messages=[],
-            chat_mode=user_db.get_user_attribute(user_id, "current_chat_mode"),
-        )
+        default_model = ai_model_db.get_default_model()
+        answer = await get_answer_from_ai(default_model.name, text, context=[])
         await tip_message.delete()
-        await query.message.reply_text(answer, parse_mode=ParseMode.HTML)
+        await query.message.reply_text(
+            answer, parse_mode=ParseMode.HTML, disable_notification=True
+        )
     else:
         await query.message.reply_text(
-            "No text found in the picture", parse_mode=ParseMode.HTML
+            "No text found in the picture",
+            parse_mode=ParseMode.HTML,
+            disable_notification=True,
         )
 
 
