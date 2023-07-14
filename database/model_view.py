@@ -166,8 +166,7 @@ class DialogServices(Database):
                    'start_time': datetime.now(), 'messages': [],
                    "ai_model": ai})
             session.add(dialog)
-            return session.query(Dialog).filter_by(user_id=user_id,
-                                                   ai_model=ai).first()
+        return dialog
 
     def get_dialog_messages(self, user_id: str, dialog_id: Optional[str] = None,
                             ai_model: str = "ChatGpt"):
