@@ -13,8 +13,7 @@ import azure.cognitiveservices.speech as speechsdk
 import openai
 import requests
 import tiktoken
-from azure.ai.translation.text import TextTranslationClient, \
-    TranslatorCredential
+from azure.ai.translation.text import TextTranslationClient, TranslatorCredential
 from azure.ai.translation.text.models import InputTextItem
 from azure.cognitiveservices.vision.computervision import ComputerVisionClient
 from azure.core.exceptions import HttpResponseError
@@ -45,19 +44,19 @@ def render_msg_with_code(msg):
     </pre>
     '''
     """
-    if '<' in msg:
-        msg = msg.replace('<', '&lt;')
-    if '>' in msg:
-        msg = msg.replace('>', '&gt;')
-    p2 = re.compile(r'```.*?```', re.S)
+    if "<" in msg:
+        msg = msg.replace("<", "&lt;")
+    if ">" in msg:
+        msg = msg.replace(">", "&gt;")
+    p2 = re.compile(r"```.*?```", re.S)
     r2 = re.findall(p2, msg)
     for r in r2:
-        lang = r.split('\n')[0].split('```')[1]
-        msg = re.sub(f'```{lang}(.*?)```', r'<code>\1</code>', msg, flags=re.S)
+        lang = r.split("\n")[0].split("```")[1]
+        msg = re.sub(f"```{lang}(.*?)```", r"<code>\1</code>", msg, flags=re.S)
     # resolve <img > tag
-    msg = re.sub(r'<img src="(.*?)".*>', r'![](\1)', msg, flags=re.S)
+    msg = re.sub(r'<img src="(.*?)".*>', r"![](\1)", msg, flags=re.S)
     # resolve `` code
-    msg = re.sub(r'`(\w+)`', r'<pre>\1</pre>', msg, flags=re.S)
+    msg = re.sub(r"`(\w+)`", r"<pre>\1</pre>", msg, flags=re.S)
     return msg
 
 
@@ -68,42 +67,50 @@ async def send_like_tying(update, context, text):
     :param context: bot context
     :param text:  msg text to send
     """
-    msg = await context.bot.send_message(chat_id=update.effective_chat.id,
-                                         text='🗣', parse_mode=ParseMode.HTML)
-    code_index = [(m.start(), m.end()) for m in
-                  re.finditer(r'<pre><code>(.+?)</code></pre>', text, re.S)]
+    msg = await context.bot.send_message(
+        chat_id=update.effective_chat.id, text="🗣", parse_mode=ParseMode.HTML
+    )
+    code_index = [
+        (m.start(), m.end())
+        for m in re.finditer(r"<pre><code>(.+?)</code></pre>", text, re.S)
+    ]
     i = 0
     length = len(text)
     while i < length:
-        num_chars = random.randint(2, 20) if length < 50 else random.randint(10,
-                                                                             50)
+        num_chars = random.randint(2, 20) if length < 50 else random.randint(10, 50)
 
         if not code_index:
-            current_text = text[:i + num_chars]
-            full_text = msg.text + f'\n\t{current_text}\n'
-            await context.bot.edit_message_text(chat_id=msg.chat_id,
-                                                message_id=msg.message_id,
-                                                text=full_text,
-                                                parse_mode=ParseMode.HTML)
+            current_text = text[: i + num_chars]
+            full_text = msg.text + f"\n\t{current_text}\n"
+            await context.bot.edit_message_text(
+                chat_id=msg.chat_id,
+                message_id=msg.message_id,
+                text=full_text,
+                parse_mode=ParseMode.HTML,
+            )
             i += num_chars
         else:
             start, end = code_index[0]
             # expand to end of code block
             if i + num_chars > start:
-                full_text = msg.text + f'\n\t{current_text}\n'
-                await context.bot.edit_message_text(chat_id=msg.chat_id,
-                                                    message_id=msg.message_id,
-                                                    text=full_text,
-                                                    parse_mode=ParseMode.HTML)
+                full_text = msg.text + f"\n\t{current_text}\n"
+                await context.bot.edit_message_text(
+                    chat_id=msg.chat_id,
+                    message_id=msg.message_id,
+                    text=full_text,
+                    parse_mode=ParseMode.HTML,
+                )
                 i = end + 1
                 code_index.pop(0)
             else:
-                current_text = text[:i + num_chars]
-                full_text = msg.text + f'\n\t{current_text}\n'
-                await context.bot.edit_message_text(chat_id=msg.chat_id,
-                                                    message_id=msg.message_id,
-                                                    text=full_text,
-                                                    parse_mode=ParseMode.HTML)
+                current_text = text[: i + num_chars]
+                full_text = msg.text + f"\n\t{current_text}\n"
+                await context.bot.edit_message_text(
+                    chat_id=msg.chat_id,
+                    message_id=msg.message_id,
+                    text=full_text,
+                    parse_mode=ParseMode.HTML,
+                )
                 i += num_chars
         await asyncio.sleep(random.uniform(0.01, 0.15))
 
@@ -112,16 +119,16 @@ def check_contain_code(check_str):
     """
     check if the str contains code
     """
-    return True if re.search('`.*`', check_str) else False
+    return True if re.search("`.*`", check_str) else False
 
 
 def get_main_lang(text):
     """count the main language in text"""
-    ch = ''.join(re.findall(r'[\u4e00-\u9fa5]', text))
-    en = ''.join(re.findall(r'[a-zA-Z]', text))
+    ch = "".join(re.findall(r"[\u4e00-\u9fa5]", text))
+    en = "".join(re.findall(r"[a-zA-Z]", text))
     if len(ch) > len(en):
-        return 'Chinese'
-    return 'English'
+        return "Chinese"
+    return "English"
 
 
 class AzureService:
@@ -130,24 +137,28 @@ class AzureService:
     recognize_key = config.azure_recognize_key
     recognize_endpoint = config.azure_recognize_endpoint
     region = config.azure_region
-    client = ComputerVisionClient(recognize_endpoint,
-                                  CognitiveServicesCredentials(recognize_key))
+    client = ComputerVisionClient(
+        recognize_endpoint, CognitiveServicesCredentials(recognize_key)
+    )
 
     translate_key = config.azure_translate_key
     translate_endpoint = config.azure_translate_endpoint
     credential = TranslatorCredential(translate_key, region)
-    text_translator = TextTranslationClient(endpoint=translate_endpoint,
-                                            credential=credential)
+    text_translator = TextTranslationClient(
+        endpoint=translate_endpoint, credential=credential
+    )
 
-    def translate(self, text: str, src_lang: str = 'zh-Hans',
-                  target_lang: str = 'en-us'):
+    def translate(
+        self, text: str, src_lang: str = "zh-Hans", target_lang: str = "en-us"
+    ):
         """use azure translate api to translate text"""
         try:
             target_languages = [target_lang]
             input_text_elements = [InputTextItem(text=text)]
 
             response = self.text_translator.translate(
-                content=input_text_elements, to=target_languages)
+                content=input_text_elements, to=target_languages
+            )
             translation = response[0] if response else None
             rs = ""
             for translated_text in translation.translations:
@@ -156,7 +167,7 @@ class AzureService:
         except HttpResponseError as exception:
             logger.error(f"translate error: {exception}")
             logger.error(f"translate error Message: {exception.error.message}")
-        return ''
+        return ""
 
     @staticmethod
     def parse_text(text):
@@ -164,81 +175,93 @@ class AzureService:
         parse string which contains chinese and english and punctaution
         return : [{lang:zh,text:中文},{lang:en,text:english},{lang:punctuation,text:,.}]
         """
-        ch_pattern = re.compile(r'[\u4e00-\u9fa5]+')
-        en_pattern = re.compile(r'[a-zA-Z ]+')
+        ch_pattern = re.compile(r"[\u4e00-\u9fa5]+")
+        en_pattern = re.compile(r"[a-zA-Z ]+")
 
         rs = []
         while text:
             temp = text
             ch = ch_pattern.match(text)
             if ch:
-                rs.append({'lang': 'zh', 'text': ch.group()})
-                text = text[len(ch.group()):]
+                rs.append({"lang": "zh", "text": ch.group()})
+                text = text[len(ch.group()) :]
             en = en_pattern.match(text)
             if en:
-                rs.append({'lang': 'en', 'text': en.group()})
-                text = text[len(en.group()):]
+                rs.append({"lang": "en", "text": en.group()})
+                text = text[len(en.group()) :]
             if temp == text:
                 # not chinese and not english char
-                rs.append({'lang': 'punctuation', 'text': text[0]})
+                rs.append({"lang": "punctuation", "text": text[0]})
                 text = text[1:]
         return rs
 
     @staticmethod
     def create_xml(text_data: list, rate: float = 1.0):
-        """create SSML xml string """
+        """create SSML xml string"""
         xml_list = [
-            '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">', ]
+            '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">',
+        ]
         length = len(text_data)
         for index, data in enumerate(text_data):
-            cur_lang = data['lang']
-            if cur_lang in ['zh', 'en']:
-                lang_name = "zh-CN-XiaoxiaoNeural" if data[
-                                                          'lang'] == 'zh' else 'en-US-JennyNeural'
+            cur_lang = data["lang"]
+            if cur_lang in ["zh", "en"]:
+                lang_name = (
+                    "zh-CN-XiaoxiaoNeural"
+                    if data["lang"] == "zh"
+                    else "en-US-JennyNeural"
+                )
                 cur = f'<voice name="{lang_name}" rate="{rate}">{data["text"]}'
                 next_ = index + 1
                 if next_ < length:
-                    next_lang = text_data[next_]['lang']
-                    if next_lang == 'punctuation':
-                        if text_data[next_]['text'] in [',', '，']:
+                    next_lang = text_data[next_]["lang"]
+                    if next_lang == "punctuation":
+                        if text_data[next_]["text"] in [",", "，"]:
                             cur += f'<break strength="weak"/>'
-                        elif text_data[next_]['text'] in ['.', '。',
-                                                          '——'] and not re.search(
-                                r'\d\.?\d*', data['text']):
+                        elif text_data[next_]["text"] in [
+                            ".",
+                            "。",
+                            "——",
+                        ] and not re.search(r"\d\.?\d*", data["text"]):
                             cur += f'<break strength="medium"/>'
-                        elif text_data[next_]['text'] in [':', '：']:
+                        elif text_data[next_]["text"] in [":", "："]:
                             cur += f'<break strength="weak"/>'
-                        cur += '</voice>'
+                        cur += "</voice>"
                         xml_list.append(cur)
                         continue
-                cur += '</voice>'
+                cur += "</voice>"
                 xml_list.append(cur)
 
-        xml_list.append('</speak>')
-        return ' '.join(xml_list)
+        xml_list.append("</speak>")
+        return " ".join(xml_list)
 
     def text2speech(self, text: str):
         """
         translate text to speech
         :param text : text  need to be translated
         """
-        logger.info('text_to_speech:')
+        logger.info("text_to_speech:")
         speech_config = speechsdk.SpeechConfig(
-            subscription=self.text2speech_key, region=self.region)
+            subscription=self.text2speech_key, region=self.region
+        )
         file_name = f"./{datetime.now().strftime('%Y%m%d%H%M%S')}.wav"
-        logger.info(f'file_name:{file_name}')
+        logger.info(f"file_name:{file_name}")
         audio_config = speechsdk.audio.AudioOutputConfig(filename=file_name)
 
         # The language of the voice that speaks.
         speech_synthesizer = speechsdk.SpeechSynthesizer(
-            speech_config=speech_config, audio_config=audio_config)
+            speech_config=speech_config, audio_config=audio_config
+        )
         try:
             ssml_text = self.create_xml(self.parse_text(text))
             speech_synthesis_result = speech_synthesizer.speak_ssml_async(
-                ssml_text).get()
+                ssml_text
+            ).get()
             logger.info(speech_synthesis_result)
-            if speech_synthesis_result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-                with wave.open(file_name, 'rb') as f:
+            if (
+                speech_synthesis_result.reason
+                == speechsdk.ResultReason.SynthesizingAudioCompleted
+            ):
+                with wave.open(file_name, "rb") as f:
                     frame_rate, num_frames = f.getframerate(), f.getnframes()
                     audio_duration = float(num_frames) / float(frame_rate)
                     if audio_duration >= 1:
@@ -246,7 +269,8 @@ class AzureService:
                     return None
             else:
                 logger.error(
-                    f'text to speech not completed : {speech_synthesis_result.reason}')
+                    f"text to speech not completed : {speech_synthesis_result.reason}"
+                )
                 return None
         except Exception as ex:
             logger.error(f"text to speech except: {ex}")
@@ -256,44 +280,47 @@ class AzureService:
     def speech2text(self, filename: str):
         """azure 语音识别"""
 
-        logger.info('speech to text:')
+        logger.info("speech to text:")
 
         try:
             if self.speech2text_key:
                 # use azure api to recognize speech
                 langs = ["en-US", "zh-CN"]
-                auto_detect_source_language_config = \
+                auto_detect_source_language_config = (
                     speechsdk.languageconfig.AutoDetectSourceLanguageConfig(
-                        languages=langs)
+                        languages=langs
+                    )
+                )
                 speech_config = speechsdk.SpeechConfig(
-                    subscription=self.speech2text_key,
-                    region=self.region)
+                    subscription=self.speech2text_key, region=self.region
+                )
                 audio_config = speechsdk.audio.AudioConfig(filename=filename)
                 speech_recognizer = speechsdk.SpeechRecognizer(
                     speech_config=speech_config,
                     auto_detect_source_language_config=auto_detect_source_language_config,
-                    audio_config=audio_config)
+                    audio_config=audio_config,
+                )
 
                 result = speech_recognizer.recognize_once_async().get()
-                auto_detect_source_language_result = speechsdk.AutoDetectSourceLanguageResult(
-                    result)
+                auto_detect_source_language_result = (
+                    speechsdk.AutoDetectSourceLanguageResult(result)
+                )
                 detected_language = auto_detect_source_language_result.language
-                logger.info(f'detected language:{detected_language}')
-                logger.info(f'result: {result}')
+                logger.info(f"detected language:{detected_language}")
+                logger.info(f"result: {result}")
                 if detected_language in langs:
                     if result.reason == speechsdk.ResultReason.RecognizedSpeech:
                         logger.info("Azure Recognized: {}".format(result.text))
                         return result.text
                 else:
-                    logger.error(
-                        f'detect language error: not en, zh. result: {result}')
+                    logger.error(f"detect language error: not en, zh. result: {result}")
                     return None
             else:
                 # use openai whisper to transcribe speech
-                with open(filename, 'rb') as f:
+                with open(filename, "rb") as f:
                     # do not set language params to recognize multi language
-                    transaction = openai.Audio.transcribe('whisper-1', file=f)
-                    logger.info(f'whisper transcribe text: {transaction.text}')
+                    transaction = openai.Audio.transcribe("whisper-1", file=f)
+                    logger.info(f"whisper transcribe text: {transaction.text}")
                 if transaction.text:
                     return transaction.text
         except Exception as e:
@@ -310,24 +337,26 @@ class AzureService:
         img_stream = open(image_path, "rb")
         try:
             times = 5
-            response = self.client.read_in_stream(img_stream,
-                                                  language="zh-Hans",
-                                                  model_version="latest",
-                                                  raw=True)
-            result_url = response.headers.get('Operation-Location')
-            result = requests.get(result_url, headers={
-                "Ocp-Apim-Subscription-Key": self.recognize_key}).json()
-            while times and result.get('status') != 'succeeded':
+            response = self.client.read_in_stream(
+                img_stream, language="zh-Hans", model_version="latest", raw=True
+            )
+            result_url = response.headers.get("Operation-Location")
+            result = requests.get(
+                result_url, headers={"Ocp-Apim-Subscription-Key": self.recognize_key}
+            ).json()
+            while times and result.get("status") != "succeeded":
                 time.sleep(0.03)
-                result = requests.get(result_url, headers={
-                    "Ocp-Apim-Subscription-Key": self.recognize_key}).json()
-                for rs in result['analyzeResult']['readResults']:
-                    for line in rs['lines']:
+                result = requests.get(
+                    result_url,
+                    headers={"Ocp-Apim-Subscription-Key": self.recognize_key},
+                ).json()
+                for rs in result["analyzeResult"]["readResults"]:
+                    for line in rs["lines"]:
                         text += f"{line['text']}\n"
                 times -= 1
             else:
-                for rs in result['analyzeResult']['readResults']:
-                    for line in rs['lines']:
+                for rs in result["analyzeResult"]["readResults"]:
+                    for line in rs["lines"]:
                         text += f"{line['text']}\n"
                 return text
         except Exception as e:
@@ -339,7 +368,7 @@ class AzureService:
         return text
 
 
-def num_tokens_from_string(string: str, encoding_name: str = 'gpt2') -> tuple:
+def num_tokens_from_string(string: str, encoding_name: str = "gpt2") -> tuple:
     """Returns the number of tokens in a text string."""
     encoding = tiktoken.get_encoding(encoding_name)
     tokens = encoding.encode(string)
@@ -350,8 +379,7 @@ def long_text_tokenizer(text: str) -> list:
     """
     long text split with 1000 token and return a list
     """
-    text = re.sub(r'\s', '', text)
+    text = re.sub(r"\s", "", text)
     num, tokens, encoding = num_tokens_from_string(text)
-    token_list = [encoding.decode(tokens[i:i + 1000]) for i in
-                  range(0, num, 1000)]
+    token_list = [encoding.decode(tokens[i : i + 1000]) for i in range(0, num, 1000)]
     return token_list
