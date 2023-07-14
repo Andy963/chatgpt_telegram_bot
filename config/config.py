@@ -1,3 +1,5 @@
+import json
+import os
 from pathlib import Path
 
 import yaml
@@ -37,8 +39,18 @@ azure_openai_api_key = config_yaml.get("azure_openai_api_key", None)
 
 new_dialog_timeout = config_yaml.get("new_dialog_timeout", 600)
 palm_api_key = config_yaml.get('palm_api_key', None)
+palm_support_zh = config_yaml.get('palm_support_zh', False)
 claude_api_key = config_yaml.get('claude_api_key', None)
 ai_models = config_yaml.get("ai_models", None)
 
 root_user_id = config_yaml.get("root_user_id", None)  # set telegram user admin
+config_file = config_yaml.get('chat_mode_path', Path(config_dir /
+                                                     'chat_mode.json'))
+if not config_file.exists():
+    with open(config_file, 'r') as f:
+        chat_mode = json.load(f)
+else:
+    print(os.getcwd())
+    with open('./config/chat_mode.json', 'r') as f:
+        chat_mode = json.load(f)
 log = '/etc/aibot/aibot.log'
