@@ -68,7 +68,7 @@ class GoogleAIService:
 
         except Exception as e:
             logger.error(f"error:\n\n ask: {message} \n with error {e}")
-            answer = f"sth went wrong"
+            answer = f"sth went wrong with palm, please try again later."
         return answer
 
     def gen_context(self, message, dialog_message: list, prompt: str = None):

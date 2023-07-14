@@ -8,8 +8,8 @@
 # Description: use openai to generate text for chatgpt and azure openai
 
 import openai
+import tiktoken
 
-from ai import CHAT_MODES
 from config import config
 from logs.log import logger
 
@@ -28,12 +28,13 @@ class OpenAIService:
                       }
 
     def __init__(self, model_name: str = 'gpt-3.5-turbo',
-                 api_type: str = 'chatgpt', **kwargs):
+                 api_type: str = 'chatgpt', max_token: int = 16000, **kwargs):
         """
         use gpt-3.5-turbo by default
         """
         self.model_name = model_name
         self.api_type = api_type
+        self.max_token = max_token
 
     def gen_options(self, messages):
         """Generate options for openai
@@ -60,20 +61,26 @@ class OpenAIService:
             }
         return opts
 
-    @staticmethod
-    def _generate_msg(message, dialog_messages, chat_mode):
+    def _generate_msg(self, message: str, dialog_messages: list, prompt: str):
         """
         Generate messages for openai
         :param message:
         :param dialog_messages:
         :param chat_mode:
         """
-        prompt = CHAT_MODES[chat_mode]["prompt_start"]
+
         messages = []
         # tell system the role you want it to play
         if not dialog_messages:
             messages.append({"role": "system", "content": prompt})
         # take the message from the user
+        ct = ' '.join([msg['content'] for msg in dialog_messages])
+        rq_token = self.count_tokens(message + ct)
+        while rq_token > self.max_token - 200:
+            messages = messages[1:]
+            ct = ' '.join([msg['content'] for msg in messages])
+            rq_token = self.count_tokens(message + ct)
+
         for msg in dialog_messages:
             messages.append({"role": "user", "content": msg["user"]})
             messages.append({"role": "assistant", "content": msg["assistant"]})
@@ -81,18 +88,15 @@ class OpenAIService:
         return messages
 
     async def send_message(self, message, dialog_messages=None,
-                           chat_mode="assistant"):
+                           prompt=None):
         """
         Send message to ask openai, same as send_message_stream, but not use
         stream mode
         """
         if dialog_messages is None:
             dialog_messages = []
-        if chat_mode not in CHAT_MODES.keys():
-            raise ValueError(f"Chat mode {chat_mode} is not supported")
-
         try:
-            messages = self._generate_msg(message, dialog_messages, chat_mode)
+            messages = self._generate_msg(message, dialog_messages, prompt)
             r = openai.ChatCompletion.create(**self.gen_options(messages))
             answer = r.choices[0].message["content"]
         except Exception as e:
@@ -100,3 +104,11 @@ class OpenAIService:
             answer = f"sth went wrong"
 
         return answer
+
+    @staticmethod
+    def count_tokens(text: str, encoding_name: str = "cl100k_base"):
+        """
+        count token
+        """
+        encoding = tiktoken.get_encoding(encoding_name)
+        return len(encoding.encode(text))

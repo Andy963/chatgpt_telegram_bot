@@ -18,7 +18,6 @@ from telegram.constants import ParseMode
 from telegram.error import BadRequest
 from telegram.ext import CallbackContext, Application
 
-from ai import CHAT_MODES
 from config import config
 from database.models import Permission
 from logs.log import logger
@@ -86,8 +85,7 @@ async def reply_voice(update, context, answer):
                 for i in range(num_segments):
                     # Calculate the start and end frames of the segment
                     start_frame = int(i * max_duration * frame_rate)
-                    end_frame = int(
-                        min((i + 1) * max_duration * frame_rate, num_frames))
+                    end_frame = int(min((i + 1) * max_duration * frame_rate, num_frames))
 
                     # Read the segment data from the audio file
                     f.setpos(start_frame)
@@ -197,8 +195,10 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             text="I'm working on it, please wait...",
             disable_notification=True,
             chat_id=update.message.chat_id, parse_mode=ParseMode.HTML)
-        context_msg = dialog_db.get_dialog_messages(user_id, dialog_id=None)
+        context_msg = dialog_db.get_dialog_messages(user_id, dialog_id=None,
+                                                    ai_model=default_model.name)
         answer = await get_answer_from_ai(default_model.name, message,
+                                          chat_mode=user_obj.current_chat_mode,
                                           context=context_msg)
         message_id = update.message.message_id
         if not answer:
@@ -225,20 +225,20 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
                                 InlineKeyboardButton("🗣 Read Aloud",
                                                      callback_data=f"Read|en")
                                 ]
-            await context.bot.send_message(text='🆘 英文太难？懒得看？',
-                                           reply_markup=InlineKeyboardMarkup(
-                                               [translate_choice]),
-                                           chat_id=update.message.chat_id,
-                                           reply_to_message_id=answer_msg.message_id,
-                                           parse_mode=ParseMode.HTML)
+            await context.bot.send_message(
+                text='🆘 英文太难？懒得看？',
+                reply_markup=InlineKeyboardMarkup(
+                    [translate_choice]),
+                chat_id=update.message.chat_id,
+                reply_to_message_id=answer_msg.message_id,
+                parse_mode=ParseMode.HTML)
         new_dialog_message = {"user": message, "assistant": answer,
                               "date": datetime.now().strftime(
                                   "%Y-%m-%d %H:%M:%s")}
         dialog_db.set_dialog_messages(
-            user_id,
-            dialog_db.get_dialog_messages(user_id, ai_model='ChatGpt') + [
-                new_dialog_message],
-            ai_model="ChatGpt")
+            user_id, dialog_db.get_dialog_messages(
+                user_id, ai_model=default_model.name)
+                     + [new_dialog_message], ai_model=default_model.name)
 
         user_db.consume_api_count(user_id)
     except BadRequest as e:
@@ -308,20 +308,24 @@ async def url_link_handle(update: Update, context: CallbackContext):
                                        parse_mode=ParseMode.HTML)
 
 
-async def get_answer_from_ai(ai_name: str, message: str, context: list):
+async def get_answer_from_ai(ai_name: str, message: str, chat_mode: str,
+                             context: list):
     """Get answer from ai model. no matter chatgpt or azure openai,
     or palm2 etc."""
     answer = None
+    prompt = config.chat_mode[chat_mode].get('prompt_start')
     ai_name = ai_name.lower()
     if 'chatgpt' in ai_name:
-        answer = await gpt_service.send_message(message, context)
+        answer = await gpt_service.send_message(message, context,prompt)
     elif 'azure_openai' in ai_name:
-        answer = await azure_openai_service.send_message(message, context)
+        answer = await azure_openai_service.send_message(message, context, prompt)
     elif 'palm2' in ai_name:
-        message = azure_service.translate(message)
-        answer = await palm_service.send_message(message, context)
+        if not config.palm_support_zh:
+            message = azure_service.translate(message)
+        answer = await palm_service.send_message(message, context,
+                                                 prompt=prompt)
     elif 'claude' in ai_name:
-        answer = await anthropic_service.send_message(message, context)
+        answer = await anthropic_service.send_message(message, context,prompt)
     else:
         answer = "Ai model not found."
     return answer
@@ -402,7 +406,7 @@ async def new_dialog_handle(update: Update, context: CallbackContext):
 
     chat_mode = user_db.get_user_attribute(user_id, "current_chat_mode")
     await update.message.reply_text(
-        f"{CHAT_MODES[chat_mode]['welcome_message']}",
+        f"{config.chat_mode[chat_mode]['welcome_message']}",
         parse_mode=ParseMode.HTML)
 
 
@@ -412,7 +416,7 @@ async def show_chat_modes_handle(update: Update, context: CallbackContext):
     user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
     keyboard = []
-    for chat_mode, chat_mode_dict in CHAT_MODES.items():
+    for chat_mode, chat_mode_dict in config.chat_mode.items():
         keyboard.append([InlineKeyboardButton(
             chat_mode_dict["name"],
             callback_data=f"set_chat_mode|{chat_mode}")])
@@ -436,11 +440,11 @@ async def set_chat_mode_handle(update: Update, context: CallbackContext):
     dialog_db.start_new_dialog(user_id)
 
     await query.edit_message_text(
-        f"<b>{CHAT_MODES[chat_mode]['name']}</b> chat mode is set",
+        f"<b>{config.chat_mode[chat_mode]['name']}</b> chat mode is set",
         parse_mode=ParseMode.HTML
     )
 
-    await query.edit_message_text(f"{CHAT_MODES[chat_mode]['welcome_message']}",
+    await query.edit_message_text(f"{config.chat_mode[chat_mode]['welcome_message']}",
                                   parse_mode=ParseMode.HTML)
 
 
@@ -505,6 +509,8 @@ async def ocr_handle(update: Update, context: CallbackContext):
             text = f"{text} Translate to {lang}"
         elif action_type == 'summary':
             text = f"{text} Summary the main point of this text in {text_main_lang}."
+
+        answer = await get_answer_from_ai()
 
         answer, _ = await gpt_service.send_message(
             text, dialog_messages=[],
