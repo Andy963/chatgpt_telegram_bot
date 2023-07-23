@@ -316,7 +316,7 @@ async def get_answer_from_ai(ai_name: str, message: str, chat_mode: str,
     prompt = config.chat_mode[chat_mode].get('prompt_start')
     ai_name = ai_name.lower()
     if 'chatgpt' in ai_name:
-        answer = await gpt_service.send_message(message, context,prompt)
+        answer = await gpt_service.send_message(message, context, prompt)
     elif 'azure_openai' in ai_name:
         answer = await azure_openai_service.send_message(message, context, prompt)
     elif 'palm2' in ai_name:
@@ -325,7 +325,7 @@ async def get_answer_from_ai(ai_name: str, message: str, chat_mode: str,
         answer = await palm_service.send_message(message, context,
                                                  prompt=prompt)
     elif 'claude' in ai_name:
-        answer = await anthropic_service.send_message(message, context,prompt)
+        answer = await anthropic_service.send_message(message, context, prompt)
     else:
         answer = "Ai model not found."
     return answer
@@ -458,8 +458,6 @@ async def photo_handle(update: Update, context: CallbackContext):
 
     await register_user_if_not_exists(update, context, update.message.from_user)
 
-    user_id = str(update.message.from_user.id)
-    user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
     name = f"{update.message.chat_id}_{int(time.time())}.jpg"
     logger.info(f'filename:{name}')
     try:
@@ -509,12 +507,14 @@ async def ocr_handle(update: Update, context: CallbackContext):
             text = f"{text} Translate to {lang}"
         elif action_type == 'summary':
             text = f"{text} Summary the main point of this text in {text_main_lang}."
-
-        answer = await get_answer_from_ai()
-
-        answer, _ = await gpt_service.send_message(
-            text, dialog_messages=[],
-            chat_mode=user_db.get_user_attribute(user_id, "current_chat_mode"))
+        default_model = ai_model_db.get_default_model()
+        if default_model is None:
+            await update.message.reply_text("Please set default model first")
+            return
+        user_obj = user_db.get_user_by_user_id(user_id)
+        answer = await get_answer_from_ai(ai_name=default_model.name, message=text,
+                                          chat_mode=user_obj.current_chat_mode, context=[])
+        user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
         await tip_message.delete()
         await query.message.reply_text(answer, parse_mode=ParseMode.HTML)
     else:
