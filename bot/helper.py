@@ -132,26 +132,39 @@ def get_main_lang(text):
 
 
 class AzureService:
-    speech2text_key = config.azure_speech2text_key
-    text2speech_key = config.azure_text2speech_key
-    recognize_key = config.azure_recognize_key
-    recognize_endpoint = config.azure_recognize_endpoint
     region = config.azure_region
-    client = ComputerVisionClient(
-        recognize_endpoint, CognitiveServicesCredentials(recognize_key)
-    )
 
-    translate_key = config.azure_translate_key
-    translate_endpoint = config.azure_translate_endpoint
-    credential = TranslatorCredential(translate_key, region)
-    text_translator = TextTranslationClient(
-        endpoint=translate_endpoint, credential=credential
-    )
+    def __init__(self):
+        self.speech2text_key = config.azure_speech2text_key
+        self.speech2text_service_available = True if self.speech2text_key else False
+
+        self.text2speech_key = config.azure_text2speech_key
+        self.text2speech_service_available = True if self.text2speech_key else False
+
+        self.recognize_key = config.azure_recognize_key
+        self.recognize_endpoint = config.azure_recognize_endpoint
+        if self.recognize_key and self.recognize_endpoint:
+            self.ocr_service_available = True
+            self.client = ComputerVisionClient(
+                self.recognize_endpoint,
+                CognitiveServicesCredentials(self.recognize_key)
+            )
+
+        self.translate_key = config.azure_translate_key
+        self.translate_endpoint = config.azure_translate_endpoint
+        if self.translate_key and self.translate_endpoint:
+            self.translate_service_available = True
+            self.credential = TranslatorCredential(self.translate_key, self.region)
+            self.text_translator = TextTranslationClient(
+                endpoint=self.translate_endpoint, credential=self.credential
+            )
 
     def translate(
-        self, text: str, src_lang: str = "zh-Hans", target_lang: str = "en-us"
+            self, text: str, src_lang: str = "zh-Hans", target_lang: str = "en-us"
     ):
         """use azure translate api to translate text"""
+        if not self.translate_service_available:
+            return
         try:
             target_languages = [target_lang]
             input_text_elements = [InputTextItem(text=text)]
@@ -184,11 +197,11 @@ class AzureService:
             ch = ch_pattern.match(text)
             if ch:
                 rs.append({"lang": "zh", "text": ch.group()})
-                text = text[len(ch.group()) :]
+                text = text[len(ch.group()):]
             en = en_pattern.match(text)
             if en:
                 rs.append({"lang": "en", "text": en.group()})
-                text = text[len(en.group()) :]
+                text = text[len(en.group()):]
             if temp == text:
                 # not chinese and not english char
                 rs.append({"lang": "punctuation", "text": text[0]})
@@ -239,6 +252,8 @@ class AzureService:
         translate text to speech
         :param text : text  need to be translated
         """
+        if not self.text2speech_service_available:
+            return
         logger.info("text_to_speech:")
         speech_config = speechsdk.SpeechConfig(
             subscription=self.text2speech_key, region=self.region
@@ -258,8 +273,8 @@ class AzureService:
             ).get()
             logger.info(speech_synthesis_result)
             if (
-                speech_synthesis_result.reason
-                == speechsdk.ResultReason.SynthesizingAudioCompleted
+                    speech_synthesis_result.reason
+                    == speechsdk.ResultReason.SynthesizingAudioCompleted
             ):
                 with wave.open(file_name, "rb") as f:
                     frame_rate, num_frames = f.getframerate(), f.getnframes()
@@ -279,7 +294,8 @@ class AzureService:
 
     def speech2text(self, filename: str):
         """azure 语音识别"""
-
+        if not self.speech2text_service_available:
+            return
         logger.info("speech to text:")
 
         try:
@@ -331,6 +347,8 @@ class AzureService:
 
     async def ocr(self, image_path: str):
         """Use Azure OCR to recognize text in image"""
+        if not self.ocr_service_available:
+            return
         text = ""
         if not Path(image_path).exists():
             return text
@@ -373,13 +391,3 @@ def num_tokens_from_string(string: str, encoding_name: str = "gpt2") -> tuple:
     encoding = tiktoken.get_encoding(encoding_name)
     tokens = encoding.encode(string)
     return len(tokens), tokens, encoding
-
-
-def long_text_tokenizer(text: str) -> list:
-    """
-    long text split with 1000 token and return a list
-    """
-    text = re.sub(r"\s", "", text)
-    num, tokens, encoding = num_tokens_from_string(text)
-    token_list = [encoding.decode(tokens[i : i + 1000]) for i in range(0, num, 1000)]
-    return token_list

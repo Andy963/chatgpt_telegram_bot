@@ -219,7 +219,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             disable_notification=True)
         user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
         # if answer is not in chinese give translate options
-        if not re.search(r'[\u4e00-\u9fff]+', answer):
+        if azure_service.translate_service_available and not re.search(r'[\u4e00-\u9fff]+', answer):
             translate_choice = [InlineKeyboardButton("请帮我翻译成中文󠁧󠁢󠁥󠁮󠁧󠁿",
                                                      callback_data=f"translate|zh"),
                                 InlineKeyboardButton("🗣 Read Aloud",
@@ -320,7 +320,7 @@ async def get_answer_from_ai(ai_name: str, message: str, chat_mode: str,
     elif 'azure_openai' in ai_name:
         answer = await azure_openai_service.send_message(message, context, prompt)
     elif 'palm2' in ai_name:
-        if not config.palm_support_zh:
+        if not config.palm_support_zh and azure_service.translate_service_available:
             message = azure_service.translate(message)
         answer = await palm_service.send_message(message, context,
                                                  prompt=prompt)
@@ -334,9 +334,18 @@ async def get_answer_from_ai(ai_name: str, message: str, chat_mode: str,
 async def voice_message_handle(update: Update, context: CallbackContext):
     logger.info('voice message handler:')
     await register_user_if_not_exists(update, context, update.message.from_user)
-
+    default_model = ai_model_db.get_default_model()
+    if default_model is None:
+        await update.message.reply_text(
+            "Please set default model first")
+        return
+    if not azure_service.speech2text_service_available or not azure_service.text2speech_service_available:
+        await update.message.reply_text(
+            'No azure speech to text or text to speech service available.',
+            parse_mode=ParseMode.HTML)
+        return
     user_id = str(update.message.from_user.id)
-    user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
+    user_obj = user_db.get_user_by_user_id(user_id)
     name = f"{update.message.chat_id}{int(time.time())}"
     logger.info(f'filename:{name}')
     try:
@@ -352,15 +361,11 @@ async def voice_message_handle(update: Update, context: CallbackContext):
             # send the recognised text
             text = 'You said: ' + recognized_text
             await update.message.reply_text(text, parse_mode=ParseMode.HTML)
-            default_model = ai_model_db.get_default_model()
-            if default_model is None:
-                await update.message.reply_text(
-                    "Please set default model first")
-                return
             answer = await get_answer_from_ai(
                 default_model.name,
-                recognized_text,
+                recognized_text, chat_mode=user_obj.current_chat_mode,
                 context=dialog_db.get_dialog_messages(user_id, dialog_id=None))
+            user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
             logger.info(f'chatgpt answered: {answer}')
             if check_contain_code(answer):
                 answer = render_msg_with_code(answer)
@@ -370,12 +375,7 @@ async def voice_message_handle(update: Update, context: CallbackContext):
                 await update.message.reply_text(answer,
                                                 parse_mode=ParseMode.HTML)
                 # check if a text_to_speech key is provided
-                if config.azure_text2speech_key:
-                    await reply_voice(update, context, answer)
-                else:
-                    await update.message.reply_text(
-                        'No azure text to speech key provided, No voice answer.',
-                        parse_mode=ParseMode.HTML)
+                await reply_voice(update, context, answer)
             new_dialog_message = {"user": recognized_text, "assistant": answer,
                                   "date": datetime.now().strftime(
                                       "%Y-%m-%d %H:%M:%s")}
@@ -455,7 +455,6 @@ async def edited_message_handle(update: Update, context: CallbackContext):
 
 async def photo_handle(update: Update, context: CallbackContext):
     logger.info('picture message handler:')
-
     await register_user_if_not_exists(update, context, update.message.from_user)
 
     name = f"{update.message.chat_id}_{int(time.time())}.jpg"
@@ -484,8 +483,11 @@ async def photo_handle(update: Update, context: CallbackContext):
 
 async def ocr_handle(update: Update, context: CallbackContext):
     """Handle ocr callback query"""
-    user_id = str(update.callback_query.from_user.id)
     query = update.callback_query
+    if not azure_service.ocr_service_available:
+        await query.message.reply_text("OCR service not available")
+        return
+    user_id = str(update.callback_query.from_user.id)
     tip_message = await context.bot.send_message(
         text="I'm working on it, please wait...", chat_id=query.message.chat_id,
         parse_mode=ParseMode.HTML)
@@ -527,7 +529,7 @@ async def read_handle(update, context):
     query = update.callback_query
     chat_id = query.message.chat_id
     message_id = query.message.reply_to_message.message_id
-    if not config.azure_text2speech_key:
+    if not azure_service.text2speech_service_available:
         await context.bot.send_message(
             text="⚠️ Please set azure text2speech key first", chat_id=chat_id,
             replay_to_message_id=message_id, parse_mode=ParseMode.HTML)
@@ -539,8 +541,14 @@ async def read_handle(update, context):
 async def translate_handle(update, context, lang):
     """对于需要翻译的消息，调用此函数使用azure 的翻译功能
     """
-    target_lang = 'zh-Hans' if lang == 'zh' else 'en-us'
     query = update.callback_query
+    if not azure_service.translate_service_available:
+        await context.bot.send_message(
+            text="Translate service not available", chat_id=query.message.chat_id,
+            replay_to_message_id=query.message.reply_to_message.message_id,
+            parse_mode=ParseMode.HTML)
+        return
+    target_lang = 'zh-Hans' if lang == 'zh' else 'en-us'
     text = query.message.reply_to_message.text.replace('🗣:', '', 1)
     translated_text = azure_service.translate(text=text,
                                               target_lang=target_lang)
