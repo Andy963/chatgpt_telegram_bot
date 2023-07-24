@@ -8,6 +8,7 @@ __pycache__/
 *.so
 *.sqlite
 *.out
+test/
 test.py
 # Distribution / packaging
 .Python

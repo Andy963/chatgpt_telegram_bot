@@ -85,7 +85,8 @@ async def reply_voice(update, context, answer):
                 for i in range(num_segments):
                     # Calculate the start and end frames of the segment
                     start_frame = int(i * max_duration * frame_rate)
-                    end_frame = int(min((i + 1) * max_duration * frame_rate, num_frames))
+                    end_frame = int(
+                        min((i + 1) * max_duration * frame_rate, num_frames))
 
                     # Read the segment data from the audio file
                     f.setpos(start_frame)
@@ -219,7 +220,8 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             disable_notification=True)
         user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
         # if answer is not in chinese give translate options
-        if azure_service.translate_service_available and not re.search(r'[\u4e00-\u9fff]+', answer):
+        if azure_service.translate_service_available and not re.search(
+                r'[\u4e00-\u9fff]+', answer):
             translate_choice = [InlineKeyboardButton("请帮我翻译成中文󠁧󠁢󠁥󠁮󠁧󠁿",
                                                      callback_data=f"translate|zh"),
                                 InlineKeyboardButton("🗣 Read Aloud",
@@ -318,7 +320,8 @@ async def get_answer_from_ai(ai_name: str, message: str, chat_mode: str,
     if 'chatgpt' in ai_name:
         answer = await gpt_service.send_message(message, context, prompt)
     elif 'azure_openai' in ai_name:
-        answer = await azure_openai_service.send_message(message, context, prompt)
+        answer = await azure_openai_service.send_message(message, context,
+                                                         prompt)
     elif 'palm2' in ai_name:
         if not config.palm_support_zh and azure_service.translate_service_available:
             message = azure_service.translate(message)
@@ -365,7 +368,8 @@ async def voice_message_handle(update: Update, context: CallbackContext):
                 default_model.name,
                 recognized_text, chat_mode=user_obj.current_chat_mode,
                 context=dialog_db.get_dialog_messages(user_id, dialog_id=None))
-            user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
+            user_db.set_user_attribute(user_id, "last_interaction",
+                                       datetime.now())
             logger.info(f'chatgpt answered: {answer}')
             if check_contain_code(answer):
                 answer = render_msg_with_code(answer)
@@ -444,8 +448,9 @@ async def set_chat_mode_handle(update: Update, context: CallbackContext):
         parse_mode=ParseMode.HTML
     )
 
-    await query.edit_message_text(f"{config.chat_mode[chat_mode]['welcome_message']}",
-                                  parse_mode=ParseMode.HTML)
+    await query.edit_message_text(
+        f"{config.chat_mode[chat_mode]['welcome_message']}",
+        parse_mode=ParseMode.HTML)
 
 
 async def edited_message_handle(update: Update, context: CallbackContext):
@@ -514,8 +519,10 @@ async def ocr_handle(update: Update, context: CallbackContext):
             await update.message.reply_text("Please set default model first")
             return
         user_obj = user_db.get_user_by_user_id(user_id)
-        answer = await get_answer_from_ai(ai_name=default_model.name, message=text,
-                                          chat_mode=user_obj.current_chat_mode, context=[])
+        answer = await get_answer_from_ai(ai_name=default_model.name,
+                                          message=text,
+                                          chat_mode=user_obj.current_chat_mode,
+                                          context=[])
         user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
         await tip_message.delete()
         await query.message.reply_text(answer, parse_mode=ParseMode.HTML)
@@ -544,7 +551,8 @@ async def translate_handle(update, context, lang):
     query = update.callback_query
     if not azure_service.translate_service_available:
         await context.bot.send_message(
-            text="Translate service not available", chat_id=query.message.chat_id,
+            text="Translate service not available",
+            chat_id=query.message.chat_id,
             replay_to_message_id=query.message.reply_to_message.message_id,
             parse_mode=ParseMode.HTML)
         return
@@ -630,7 +638,7 @@ async def list_user_handle(update: Update, context: CallbackContext):
     users = user_db.list_all_user()
     text = "List All Users \nHere are the available users:\n"
     btns = InlineKeyboardMarkup([[InlineKeyboardButton(
-        f"{user.username}{user.user_id}",
+        f"{user.username if user.username else 'Nobody'}({user.user_id})",
         callback_data=f"m_user|{user.user_id}")] for user in users])
     await update.message.reply_text(text, reply_markup=btns,
                                     parse_mode=ParseMode.HTML)
