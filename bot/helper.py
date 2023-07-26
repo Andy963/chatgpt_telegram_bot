@@ -299,46 +299,37 @@ class AzureService:
         logger.info("speech to text:")
 
         try:
-            if self.speech2text_key:
-                # use azure api to recognize speech
-                langs = ["en-US", "zh-CN"]
-                auto_detect_source_language_config = (
-                    speechsdk.languageconfig.AutoDetectSourceLanguageConfig(
-                        languages=langs
-                    )
+            # use azure api to recognize speech
+            langs = ["en-US", "zh-CN"]
+            auto_detect_source_language_config = (
+                speechsdk.languageconfig.AutoDetectSourceLanguageConfig(
+                    languages=langs
                 )
-                speech_config = speechsdk.SpeechConfig(
-                    subscription=self.speech2text_key, region=self.region
-                )
-                audio_config = speechsdk.audio.AudioConfig(filename=filename)
-                speech_recognizer = speechsdk.SpeechRecognizer(
-                    speech_config=speech_config,
-                    auto_detect_source_language_config=auto_detect_source_language_config,
-                    audio_config=audio_config,
-                )
+            )
+            speech_config = speechsdk.SpeechConfig(
+                subscription=self.speech2text_key, region=self.region
+            )
+            audio_config = speechsdk.audio.AudioConfig(filename=filename)
+            speech_recognizer = speechsdk.SpeechRecognizer(
+                speech_config=speech_config,
+                auto_detect_source_language_config=auto_detect_source_language_config,
+                audio_config=audio_config,
+            )
 
-                result = speech_recognizer.recognize_once_async().get()
-                auto_detect_source_language_result = (
-                    speechsdk.AutoDetectSourceLanguageResult(result)
-                )
-                detected_language = auto_detect_source_language_result.language
-                logger.info(f"detected language:{detected_language}")
-                logger.info(f"result: {result}")
-                if detected_language in langs:
-                    if result.reason == speechsdk.ResultReason.RecognizedSpeech:
-                        logger.info("Azure Recognized: {}".format(result.text))
-                        return result.text
-                else:
-                    logger.error(f"detect language error: not en, zh. result: {result}")
-                    return None
+            result = speech_recognizer.recognize_once_async().get()
+            auto_detect_source_language_result = (
+                speechsdk.AutoDetectSourceLanguageResult(result)
+            )
+            detected_language = auto_detect_source_language_result.language
+            logger.info(f"detected language:{detected_language}")
+            logger.info(f"result: {result}")
+            if detected_language in langs:
+                if result.reason == speechsdk.ResultReason.RecognizedSpeech:
+                    logger.info("Azure Recognized: {}".format(result.text))
+                    return result.text
             else:
-                # use openai whisper to transcribe speech
-                with open(filename, "rb") as f:
-                    # do not set language params to recognize multi language
-                    transaction = openai.Audio.transcribe("whisper-1", file=f)
-                    logger.info(f"whisper transcribe text: {transaction.text}")
-                if transaction.text:
-                    return transaction.text
+                logger.error(f"detect language error: not en, zh. result: {result}")
+                return None
         except Exception as e:
             logger.error(f"recognize except: {e}")
             logger.error(f"traceback: {traceback.format_exc()}")

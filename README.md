@@ -59,6 +59,7 @@ TODO:
 - [ ] user list page by page
 - [ ] model select by user
 - [ ] get the latest new and summarize and send to user on schedule (maybe with voice)
+- [ ] decorator: register user, last interaction
 
 if you are using ubuntu 22.04, you need to install the latest libssl1.1 either as a binary package, or by compiling it
 from sources.

@@ -342,9 +342,9 @@ async def voice_message_handle(update: Update, context: CallbackContext):
         await update.message.reply_text(
             "Please set default model first")
         return
-    if not azure_service.speech2text_service_available or not azure_service.text2speech_service_available:
+    if not azure_service.speech2text_service_available:
         await update.message.reply_text(
-            'No azure speech to text or text to speech service available.',
+            'No azure speech to text service available,Can not handle voice message.',
             parse_mode=ParseMode.HTML)
         return
     user_id = str(update.message.from_user.id)
@@ -379,7 +379,8 @@ async def voice_message_handle(update: Update, context: CallbackContext):
                 await update.message.reply_text(answer,
                                                 parse_mode=ParseMode.HTML)
                 # check if a text_to_speech key is provided
-                await reply_voice(update, context, answer)
+                if azure_service.text2speech_service_available:
+                    await reply_voice(update, context, answer)
             new_dialog_message = {"user": recognized_text, "assistant": answer,
                                   "date": datetime.now().strftime(
                                       "%Y-%m-%d %H:%M:%s")}
