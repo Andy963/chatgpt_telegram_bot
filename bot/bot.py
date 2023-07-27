@@ -1,3 +1,4 @@
+import asyncio
 import html
 import json
 import math
@@ -13,7 +14,8 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 from pydub import AudioSegment
-from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup, \
+    Message
 from telegram.constants import ParseMode
 from telegram.error import BadRequest
 from telegram.ext import CallbackContext, Application
@@ -186,6 +188,18 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             await update.message.reply_text(
                 "Starting new dialog due to timeout ⌛️")
     answer = None
+    sem = asyncio.Semaphore(1)
+
+    async def keep_editing(context: CallbackContext, msg: Message, text: str):
+        """keep editing the tip message until get answer from the ai
+        """
+        if not sem.locked() and msg is not None:
+            text = text[:-1] + '.' + text[-1]
+            await context.bot.edit_message_text(text, msg.chat_id,
+                                                msg.message_id)
+            await asyncio.sleep(1)
+            await keep_editing(context, msg, text)
+
     try:
         default_model = ai_model_db.get_default_model()
         if default_model is None:
@@ -193,11 +207,14 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             return
         message = update.message.text
         tip_message = await context.bot.send_message(
-            text="I'm working on it, please wait...",
+            text="I'm working on it, please wait🤔",
             disable_notification=True,
             chat_id=update.message.chat_id, parse_mode=ParseMode.HTML)
         context_msg = dialog_db.get_dialog_messages(user_id, dialog_id=None,
                                                     ai_model=default_model.name)
+        edit_task = asyncio.create_task(
+            keep_editing(context, tip_message, tip_message.text))
+        # asyncio.ensure_future(edit_task)  no need
         answer = await get_answer_from_ai(default_model.name, message,
                                           chat_mode=user_obj.current_chat_mode,
                                           context=context_msg)
@@ -209,7 +226,12 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
                                            parse_mode=ParseMode.HTML,
                                            disable_notification=True)
             return
+        # stop the editing
+        # cancel the task
+        await sem.acquire()
+        edit_task.cancel()
         await tip_message.delete()
+
         if check_contain_code(answer):
             answer = render_msg_with_code(answer)
         answer_msg = await context.bot.send_message(
@@ -222,11 +244,12 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         # if answer is not in chinese give translate options
         if azure_service.translate_service_available and not re.search(
                 r'[\u4e00-\u9fff]+', answer):
-            translate_choice = [InlineKeyboardButton("请帮我翻译成中文󠁧󠁢󠁥󠁮󠁧󠁿",
-                                                     callback_data=f"translate|zh"),
-                                InlineKeyboardButton("🗣 Read Aloud",
-                                                     callback_data=f"Read|en")
-                                ]
+            translate_choice = [
+                InlineKeyboardButton("请帮我翻译成中文󠁧󠁢󠁥󠁮󠁧󠁿",
+                                     callback_data=f"translate|zh"),
+                InlineKeyboardButton("🗣 Read Aloud",
+                                     callback_data=f"Read|en")
+            ]
             await context.bot.send_message(
                 text='🆘 英文太难？懒得看？',
                 reply_markup=InlineKeyboardMarkup(
