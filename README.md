@@ -23,12 +23,11 @@ You can deploy your own bot
 - `/new` – Start new dialog
 - `/mode` – Select chat mode
 - `/help` – Show help
-- `/lp` – List prompts (np, lp, dp: add new prompt, list prompt, del prompt with id)
 - `/model` - List all ai model (chatgpt, palm2, azure_openai etc. admin required)
 
 ### Setup
 
-1. Get your [OpenAI API](https://openai.com/api/) or paLM2 key, or azure openai key.
+1. Get your [OpenAI API](https://openai.com/api/) , paLM2 key, , azure openai key or claude key.
 
 2. Get your Telegram bot token from [@BotFather](https://t.me/BotFather)
 
@@ -59,7 +58,6 @@ TODO:
 - [ ] user list page by page
 - [ ] model select by user
 - [ ] get the latest new and summarize and send to user on schedule (maybe with voice)
-- [ ] decorator: register user, last interaction
 
 if you are using ubuntu 22.04, you need to install the latest libssl1.1 either as a binary package, or by compiling it
 from sources.
@@ -68,4 +66,3 @@ from sources.
 ## References
 1. [*Build ChatGPT from GPT-3*](https://learnprompting.org/docs/applied_prompting/build_chatgpt)
 2. [install libssl1.1](https://learn.microsoft.com/en-us/azure/cognitive-services/speech-service/quickstarts/setup-platform?pivots=programming-language-python&tabs=linux%2Cubuntu%2Cdotnet%2Cjre%2Cmaven%2Cnodejs%2Cmac%2Cpypi)
-3. [bing chat](https://github.com/acheong08/EdgeGPT)

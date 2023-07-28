@@ -8,6 +8,7 @@ import string
 import time
 import traceback
 import wave
+from asyncio import Condition
 from datetime import datetime
 from pathlib import Path
 
@@ -188,17 +189,19 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             await update.message.reply_text(
                 "Starting new dialog due to timeout ⌛️")
     answer = None
-    sem = asyncio.Semaphore(1)
+    condition = asyncio.Condition()
 
-    async def keep_editing(context: CallbackContext, msg: Message, text: str):
+    async def keep_editing(
+            condition:Condition,context: CallbackContext, msg: Message, text: str):
         """keep editing the tip message until get answer from the ai
         """
-        if not sem.locked() and msg is not None:
-            text = text[:-1] + '.' + text[-1]
-            await context.bot.edit_message_text(text, msg.chat_id,
+        async with condition:
+            if msg is not None:
+                text = text[:-1] + '.' + text[-1]
+                await context.bot.edit_message_text(text, msg.chat_id,
                                                 msg.message_id)
-            await asyncio.sleep(1)
-            await keep_editing(context, msg, text)
+                await asyncio.sleep(1)
+        await keep_editing(condition, context, msg, text)
 
     try:
         default_model = ai_model_db.get_default_model()
@@ -213,8 +216,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         context_msg = dialog_db.get_dialog_messages(user_id, dialog_id=None,
                                                     ai_model=default_model.name)
         edit_task = asyncio.create_task(
-            keep_editing(context, tip_message, tip_message.text))
-        # asyncio.ensure_future(edit_task)  no need
+            keep_editing(condition, context, tip_message, tip_message.text))
         answer = await get_answer_from_ai(default_model.name, message,
                                           chat_mode=user_obj.current_chat_mode,
                                           context=context_msg)
@@ -228,7 +230,9 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             return
         # stop the editing
         # cancel the task
-        await sem.acquire()
+        await condition.acquire()
+        condition.notify()
+        condition.release()
         edit_task.cancel()
         await tip_message.delete()
 
