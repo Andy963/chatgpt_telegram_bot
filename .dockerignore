@@ -6,3 +6,4 @@ tests/
 *config.example.yml
 config.yml
 .vscode
+.git

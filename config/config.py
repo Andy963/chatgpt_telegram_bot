@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 
 import yaml
@@ -39,7 +38,6 @@ azure_openai_api_key = config_yaml.get("azure_openai_api_key", None)
 
 new_dialog_timeout = config_yaml.get("new_dialog_timeout", 600)
 palm_api_key = config_yaml.get('palm_api_key', None)
-palm_support_zh = config_yaml.get('palm_support_zh', False)
 palm_model_name = config_yaml.get('palm_model_name', 'models/chat-bison-001')
 claude_api_key = config_yaml.get('claude_api_key', None)
 claude_model_name = config_yaml.get('claude_model_name', 'claude-2')
