@@ -25,7 +25,6 @@ class Database:
         else:
             self.session.rollback()
         self.session.close()
-        # self._engine.dispose()
 
 
 class RoleServices(Database):
@@ -38,7 +37,9 @@ class RoleServices(Database):
             }
             for r in roles:
                 role = self.session.query(Role).filter_by(name=r).first()
-                if role is None:
+                if role is not None:
+                    continue
+                else:
                     role = Role(name=r)
                 role.reset_permission()
                 for p in roles[r]:
@@ -94,22 +95,22 @@ class UserServices(Database):
                 use try except instead
                 set user's attribute by key
         """
-        try:
-            user = self.session.query(User).filter_by(user_id=user_id).first()
+        user = self.session.query(User).filter_by(user_id=user_id).first()
+        if user:
             with self as session:
                 setattr(user, key, value)
                 session.add(user)
-        except NoResultFound:
-            pass
+        else:
+            raise Exception('user not exists, can not set attribute')
 
     def add_user_api_count(self, user_id: str, count: int):
-        try:
-            user = self.session.query(User).filter_by(user_id=user_id).first()
+        user = self.session.query(User).filter_by(user_id=user_id).first()
+        if user:
             with self as session:
                 user.api_count += count
                 session.add(user)
-        except NoResultFound:
-            pass
+        else:
+            raise Exception('user not exists, can not add api count')
 
     def del_user(self, user_id: str):
         """Delete user from database
@@ -118,7 +119,8 @@ class UserServices(Database):
             session.query(User).filter_by(user_id=user_id).delete()
 
     def get_user_by_user_id(self, user_id):
-        # telegram user id
+        """user telegram user id to return the User object id
+        """
         return self.session.query(User).filter_by(user_id=user_id).first()
 
     def init_root_user(self):
@@ -184,11 +186,8 @@ class DialogServices(Database):
                 ai_model=ai_model_obj).first()
         # reduce the messages length
         if dialog is not None:
-            if len(dialog.messages) > 10:
-                return dialog.messages[-8:]
             return dialog.messages
-        else:
-            return []
+        return []
 
     def get_real_dialog_id(self, user_id: str, dialog_id: int) -> int:
         """
@@ -211,8 +210,8 @@ class DialogServices(Database):
         ai_model_obj = self.session.query(AiModel).filter_by(
             name=ai_model).first()
         user_obj = self.session.query(User).filter_by(user_id=user_id).first()
-        dialog_obj = self.session.query(Dialog).filter_by(user_id=user_id,
-                                                          ai_model=ai_model_obj).order_by(
+        dialog_obj = self.session.query(Dialog).filter_by(
+            user_id=user_id, ai_model=ai_model_obj).order_by(
             desc(Dialog.id)).first()
         if dialog_obj is None:
             dialog_id = str(uuid.uuid4())

@@ -68,7 +68,7 @@ else:
 logger = fs
 if __name__ == "__main__":
     logger = FileSplitLogger(
-        "./test.log",
+        "./tests.log",
         "debug",
         max_bytes=100,
     )()

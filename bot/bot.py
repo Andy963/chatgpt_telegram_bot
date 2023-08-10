@@ -66,7 +66,7 @@ async def init_menu(app: Application) -> None:
 
 
 async def register_user_if_not_exists(
-    update: Update, context: CallbackContext, user: User
+        update: Update, context: CallbackContext, user: User
 ):
     if not user_db.check_if_user_exists(user.id):
         role_id = role_db.get_default_role().id
@@ -113,7 +113,8 @@ async def reply_voice(update, context, answer):
                     segment_data = f.readframes(end_frame - start_frame)
 
                     # Write the segment data to a temporary file
-                    random_str = random.sample(string.ascii_letters + string.digits, 6)
+                    random_str = random.sample(
+                        string.ascii_letters + string.digits, 6)
                     segment_filename = f"segment_{random_str}.ogg"
                     with wave.open(segment_filename, "wb") as segment_file:
                         segment_file.setparams(f.getparams())
@@ -122,7 +123,8 @@ async def reply_voice(update, context, answer):
                     # Send the segment as a Telegram audio message
                     with open(segment_filename, "rb") as segment_file:
                         await context.bot.send_chat_action(
-                            chat_id=update.effective_chat.id, action="record_audio"
+                            chat_id=update.effective_chat.id,
+                            action="record_audio"
                         )
                         await context.bot.send_voice(
                             chat_id=update.effective_chat.id, voice=segment_file
@@ -140,42 +142,41 @@ async def reply_voice(update, context, answer):
 
 
 async def start_handle(update: Update, context: CallbackContext):
-    await register_user_if_not_exists(update, context, update.message.from_user)
-    user_id = update.message.from_user.id
-    logger.info(f"user_id: {user_id} start chat")
+    user = update.message.from_user
+    await register_user_if_not_exists(update, context, user)
+    logger.info(f"user_id: {user.id} start chat")
 
-    user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
-
-    dialog_db.start_new_dialog(user_id)
+    user_db.set_user_attribute(user.id, "last_interaction", datetime.now())
+    dialog_db.start_new_dialog(user.id)
 
     reply_text = "Hi! I'm An AI bot implemented with GPT API 🤖\n\n"
     reply_text += HELP_MESSAGE
-
     reply_text += "\nAnd now... ask me anything!"
 
     await update.message.reply_text(reply_text, parse_mode=ParseMode.HTML)
 
 
 async def help_handle(update: Update, context: CallbackContext):
-    await register_user_if_not_exists(update, context, update.message.from_user)
-    user_id = update.message.from_user.id
-    user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
+    user = update.message.from_user
+    await register_user_if_not_exists(update, context, user)
+    user_db.set_user_attribute(user.id, "last_interaction", datetime.now())
     await update.message.reply_text(HELP_MESSAGE, parse_mode=ParseMode.HTML)
 
 
 async def retry_handle(update: Update, context: CallbackContext):
-    await register_user_if_not_exists(update, context, update.message.from_user)
-    user_id = update.message.from_user.id
-    user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
-
-    dialog_messages = dialog_db.get_dialog_messages(user_id, dialog_id=None)
+    user = update.message.from_user
+    await register_user_if_not_exists(update, context, user)
+    ai_model_name = ai_model_db.get_default_model().name
+    dialog_messages = dialog_db.get_dialog_messages(user.id, dialog_id=None,
+                                                    ai_model=ai_model_name)
     if len(dialog_messages) == 0:
         await update.message.reply_text("No message to retry 🤷‍♂️")
         return
 
     last_dialog_message = dialog_messages.pop()
     # last message was removed from the context
-    dialog_db.set_dialog_messages(user_id, dialog_messages)
+    dialog_db.set_dialog_messages(user.id, dialog_messages,
+                                  ai_model=ai_model_name)
 
     await message_handle(
         update,
@@ -186,17 +187,17 @@ async def retry_handle(update: Update, context: CallbackContext):
 
 
 async def message_handle(
-    update: Update, context: CallbackContext, message=None, use_new_dialog_timeout=True
+        update: Update, context: CallbackContext, message=None,
+        use_new_dialog_timeout=True
 ):
     # check if message is edited
 
     if update.edited_message is not None:
         await edited_message_handle(update, context)
         return
-
-    await register_user_if_not_exists(update, context, update.message.from_user)
-    user_id = update.message.from_user.id
-    user_obj = user_db.get_user_by_user_id(user_id)
+    user = update.message.from_user
+    await register_user_if_not_exists(update, context, user)
+    user_obj = user_db.get_user_by_user_id(user.id)
     if not user_obj or not user_obj.has_api_count():
         await update.message.reply_text(
             "You have no API count left, please contact the admin to get more 🤷‍♂️"
@@ -205,20 +206,23 @@ async def message_handle(
 
     # new dialog timeout
     if use_new_dialog_timeout:
-        last_time = user_db.get_user_attribute(user_id, "last_interaction")
+        last_time = user_db.get_user_attribute(user.id, "last_interaction")
         if (datetime.now() - last_time).seconds > config.new_dialog_timeout:
-            dialog_db.start_new_dialog(user_id=str(user_id))
-            await update.message.reply_text("Starting new dialog due to timeout ⌛️")
+            dialog_db.start_new_dialog(user_id=str(user.id))
+            await update.message.reply_text(
+                "Starting new dialog due to timeout ⌛️")
     answer = None
     condition = asyncio.Condition()
 
     async def keep_editing(
-        condition: Condition, context: CallbackContext, msg: Message, text: str
+            condition: Condition, context: CallbackContext, msg: Message,
+            text: str
     ):
         """keep editing the tip message until get answer from the ai"""
         if msg is not None and not condition.locked():
             text = text[:-1] + "." + text[-1]
-            await context.bot.edit_message_text(text, msg.chat_id, msg.message_id)
+            await context.bot.edit_message_text(text, msg.chat_id,
+                                                msg.message_id)
             await asyncio.sleep(1)
             await keep_editing(condition, context, msg, text)
 
@@ -235,7 +239,7 @@ async def message_handle(
             parse_mode=ParseMode.HTML,
         )
         context_msg = dialog_db.get_dialog_messages(
-            user_id, dialog_id=None, ai_model=default_model.name
+            user.id, dialog_id=None, ai_model=default_model.name
         )
         edit_task = asyncio.create_task(
             keep_editing(condition, context, tip_message, tip_message.text)
@@ -274,13 +278,14 @@ async def message_handle(
             parse_mode=ParseMode.HTML,
             disable_notification=True,
         )
-        user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
+        user_db.set_user_attribute(user.id, "last_interaction", datetime.now())
         # if answer is not in chinese give translate options
         if azure_service.translate_service_available and not re.search(
-            r"[\u4e00-\u9fff]+", answer
+                r"[\u4e00-\u9fff]+", answer
         ):
             translate_choice = [
-                InlineKeyboardButton("请帮我翻译成中文󠁧󠁢󠁥󠁮󠁧󠁿", callback_data=f"translate|zh"),
+                InlineKeyboardButton("请帮我翻译成中文󠁧󠁢󠁥󠁮󠁧󠁿",
+                                     callback_data=f"translate|zh"),
                 InlineKeyboardButton("🗣 Read Aloud", callback_data=f"Read|en"),
             ]
             await context.bot.send_message(
@@ -296,13 +301,13 @@ async def message_handle(
             "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s"),
         }
         dialog_db.set_dialog_messages(
-            user_id,
-            dialog_db.get_dialog_messages(user_id, ai_model=default_model.name)
+            user.id,
+            dialog_db.get_dialog_messages(user.id, ai_model=default_model.name)
             + [new_dialog_message],
             ai_model=default_model.name,
         )
 
-        user_db.consume_api_count(user_id)
+        user_db.consume_api_count(user.id)
     except BadRequest as e:
         # Can't parse entities: unsupported start tag "=" at byte offset 1267
         if "unsupported start tag" in str(e.message):
@@ -330,7 +335,8 @@ async def url_link_handle(update: Update, context: CallbackContext):
         url = query.message.reply_to_message.text
         if not url:
             await context.bot.send_message(
-                text=f"can't get text from this url", chat_id=query.message.chat_id
+                text=f"can't get text from this url",
+                chat_id=query.message.chat_id
             )
         response = requests.get(url)
         response.encoding = "utf-8"
@@ -339,12 +345,13 @@ async def url_link_handle(update: Update, context: CallbackContext):
         text = re.sub(r"\s", "", text)
         if not text:
             await context.bot.send_message(
-                text=f"can't get text from this url", chat_id=query.message.chat_id
+                text=f"can't get text from this url",
+                chat_id=query.message.chat_id
             )
         if total_tokens := num_tokens_from_string(text)[0] > 10000:
             await context.bot.send_message(
                 text=f"This message is more than 10000 tokens(Total:{total_tokens}), "
-                f"watch your credit",
+                     f"watch your credit",
                 chat_id=query.message.chat_id,
             )
 
@@ -357,7 +364,8 @@ async def url_link_handle(update: Update, context: CallbackContext):
         await tip_message.delete()
         if answer:
             await context.bot.send_message(
-                text=answer, chat_id=query.message.chat_id, parse_mode=ParseMode.HTML
+                text=answer, chat_id=query.message.chat_id,
+                parse_mode=ParseMode.HTML
             )
             new_dialog_message = {
                 "user": text,
@@ -379,7 +387,8 @@ async def url_link_handle(update: Update, context: CallbackContext):
         )
 
 
-async def get_answer_from_ai(ai_name: str, message: str, chat_mode: str, context: list):
+async def get_answer_from_ai(ai_name: str, message: str, chat_mode: str,
+                             context: list):
     """Get answer from ai model. no matter chatgpt or azure openai,
     or palm2 etc."""
     answer = None
@@ -388,9 +397,11 @@ async def get_answer_from_ai(ai_name: str, message: str, chat_mode: str, context
     if "chatgpt" in ai_name:
         answer = await gpt_service.send_message(message, context, prompt)
     elif "azure_openai" in ai_name:
-        answer = await azure_openai_service.send_message(message, context, prompt)
+        answer = await azure_openai_service.send_message(message, context,
+                                                         prompt)
     elif "palm2" in ai_name:
-        answer = await palm_service.send_message(message, context, prompt=prompt)
+        answer = await palm_service.send_message(message, context,
+                                                 prompt=prompt)
     elif "claude" in ai_name:
         answer = await anthropic_service.send_message(message, context, prompt)
     else:
@@ -434,13 +445,16 @@ async def voice_message_handle(update: Update, context: CallbackContext):
                 chat_mode=user_obj.current_chat_mode,
                 context=dialog_db.get_dialog_messages(user_id, dialog_id=None),
             )
-            user_db.set_user_attribute(user_id, "last_interaction", datetime.now())
+            user_db.set_user_attribute(user_id, "last_interaction",
+                                       datetime.now())
             logger.info(f"chatgpt answered: {answer}")
             if check_contain_code(answer):
                 answer = render_msg_with_code(answer)
-                await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
+                await update.message.reply_text(answer,
+                                                parse_mode=ParseMode.HTML)
             else:
-                await update.message.reply_text(answer, parse_mode=ParseMode.HTML)
+                await update.message.reply_text(answer,
+                                                parse_mode=ParseMode.HTML)
                 # check if a text_to_speech key is provided
                 if azure_service.text2speech_service_available:
                     await reply_voice(update, context, answer)
@@ -476,7 +490,8 @@ async def new_dialog_handle(update: Update, context: CallbackContext):
 
     chat_mode = user_db.get_user_attribute(user_id, "current_chat_mode")
     await update.message.reply_text(
-        f"{config.chat_mode[chat_mode]['welcome_message']}", parse_mode=ParseMode.HTML
+        f"{config.chat_mode[chat_mode]['welcome_message']}",
+        parse_mode=ParseMode.HTML
     )
 
 
@@ -490,17 +505,20 @@ async def show_chat_modes_handle(update: Update, context: CallbackContext):
         keyboard.append(
             [
                 InlineKeyboardButton(
-                    chat_mode_dict["name"], callback_data=f"set_chat_mode|{chat_mode}"
+                    chat_mode_dict["name"],
+                    callback_data=f"set_chat_mode|{chat_mode}"
                 )
             ]
         )
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text("Select chat mode:", reply_markup=reply_markup)
+    await update.message.reply_text("Select chat mode:",
+                                    reply_markup=reply_markup)
 
 
 async def set_chat_mode_handle(update: Update, context: CallbackContext):
-    await register_user_if_not_exists(update, context, update.callback_query.from_user)
+    await register_user_if_not_exists(update, context,
+                                      update.callback_query.from_user)
     user_id = str(update.callback_query.from_user.id)
 
     query = update.callback_query
@@ -517,7 +535,8 @@ async def set_chat_mode_handle(update: Update, context: CallbackContext):
     )
 
     await query.edit_message_text(
-        f"{config.chat_mode[chat_mode]['welcome_message']}", parse_mode=ParseMode.HTML
+        f"{config.chat_mode[chat_mode]['welcome_message']}",
+        parse_mode=ParseMode.HTML
     )
 
 
@@ -540,7 +559,8 @@ async def photo_handle(update: Update, context: CallbackContext):
                 InlineKeyboardButton("OCR", callback_data=f"ocr|{name}|None"),
                 InlineKeyboardButton("ZH", callback_data=f"ocr|{name}|zh"),
                 InlineKeyboardButton("EN", callback_data=f"ocr|{name}|en"),
-                InlineKeyboardButton("Summary", callback_data=f"ocr|{name}|summary"),
+                InlineKeyboardButton("Summary",
+                                     callback_data=f"ocr|{name}|summary"),
             ]
             await update.message.reply_text(
                 "What do you want to do with the picture?",
@@ -634,7 +654,8 @@ async def translate_handle(update, context, lang):
         return
     target_lang = "zh-Hans" if lang == "zh" else "en-us"
     text = query.message.reply_to_message.text.replace("🗣:", "", 1)
-    translated_text = azure_service.translate(text=text, target_lang=target_lang)
+    translated_text = azure_service.translate(text=text,
+                                              target_lang=target_lang)
     await context.bot.send_message(
         text=f"{translated_text}",
         chat_id=query.message.chat_id,
@@ -644,7 +665,8 @@ async def translate_handle(update, context, lang):
 
 
 async def dispatch_callback_handle(update: Update, context: CallbackContext):
-    await register_user_if_not_exists(update, context, update.callback_query.from_user)
+    await register_user_if_not_exists(update, context,
+                                      update.callback_query.from_user)
     query = update.callback_query
     if query.data.startswith("translate"):
         _, lang = query.data.split("|")
@@ -672,7 +694,8 @@ async def dispatch_callback_handle(update: Update, context: CallbackContext):
 
 
 async def error_handle(update: Update, context: CallbackContext) -> None:
-    logger.error(msg="Exception while handling an update:", exc_info=context.error)
+    logger.error(msg="Exception while handling an update:",
+                 exc_info=context.error)
 
     try:
         # collect error message
@@ -680,7 +703,8 @@ async def error_handle(update: Update, context: CallbackContext) -> None:
             None, context.error, context.error.__traceback__
         )
         tb_string = "".join(tb_list)[:2000]
-        update_str = update.to_dict() if isinstance(update, Update) else str(update)
+        update_str = update.to_dict() if isinstance(update, Update) else str(
+            update)
         message = (
             f"An exception was raised while handling an update\n"
             f"<pre>update = {html.escape(json.dumps(update_str, indent=2, ensure_ascii=False))}"
@@ -691,12 +715,13 @@ async def error_handle(update: Update, context: CallbackContext) -> None:
         # split text into multiple messages due to 4096 character limit
         message_chunk_size = 4000
         message_chunks = [
-            message[i : i + message_chunk_size]
+            message[i: i + message_chunk_size]
             for i in range(0, len(message), message_chunk_size)
         ]
         for message_chunk in message_chunks:
             await context.bot.send_message(
-                update.effective_chat.id, message_chunk, parse_mode=ParseMode.HTML
+                update.effective_chat.id, message_chunk,
+                parse_mode=ParseMode.HTML
             )
     except Exception as e:
         await context.bot.send_message(
@@ -725,7 +750,8 @@ async def list_user_handle(update: Update, context: CallbackContext):
             for user in users
         ]
     )
-    await update.message.reply_text(text, reply_markup=btns, parse_mode=ParseMode.HTML)
+    await update.message.reply_text(text, reply_markup=btns,
+                                    parse_mode=ParseMode.HTML)
 
 
 async def manage_user_handle(update: Update, context: CallbackContext):
@@ -743,7 +769,8 @@ async def manage_user_handle(update: Update, context: CallbackContext):
         [
             [
                 InlineKeyboardButton(
-                    "ADD API 50", callback_data=f"add_api_count|{cur_user.user_id}|{50}"
+                    "ADD API 50",
+                    callback_data=f"add_api_count|{cur_user.user_id}|{50}"
                 ),
                 InlineKeyboardButton(
                     "ADD API 100",
@@ -760,7 +787,8 @@ async def manage_user_handle(update: Update, context: CallbackContext):
                     callback_data=f"add_api_count|{cur_user.user_id}|{0}",
                 ),
                 InlineKeyboardButton(
-                    "SET AS ADMIN", callback_data=f"admin_user|{cur_user.user_id}"
+                    "SET AS ADMIN",
+                    callback_data=f"admin_user|{cur_user.user_id}"
                 ),
             ],
         ]
@@ -873,7 +901,8 @@ async def toggle_ai_model_handle(update: Update, context: CallbackContext):
 
 async def set_default_ai_model_handle(update: Update, context: CallbackContext):
     """set the default ai model"""
-    await register_user_if_not_exists(update, context, update.callback_query.from_user)
+    await register_user_if_not_exists(update, context,
+                                      update.callback_query.from_user)
     # remove the default flag from the old default model
     df_model = ai_model_db.get_default_model()
     if df_model:
@@ -921,10 +950,12 @@ async def new_prompt_handle(update: Update, context: CallbackContext):
         _, data = update.message.text.split(" ", 1)
         short_desc, prompt = data.split("|")
         prompt_db.add_new_prompt(short_desc, prompt)
-        await update.message.reply_text(f"Prompt ({short_desc}) added successfully.")
+        await update.message.reply_text(
+            f"Prompt ({short_desc}) added successfully.")
     except ValueError as ve:
         logger.error(ve)
-        await update.message.reply_text("Prompt format error, please try again.")
+        await update.message.reply_text(
+            "Prompt format error, please try again.")
 
 
 async def del_prompt_handle(update: Update, context: CallbackContext):
@@ -932,10 +963,12 @@ async def del_prompt_handle(update: Update, context: CallbackContext):
     try:
         prompt_id = update.message.text.split(" ")[1]
         prompt_db.del_prompt(prompt_id)
-        await update.message.reply_text(f"Prompt ({prompt_id}) deleted successfully.")
+        await update.message.reply_text(
+            f"Prompt ({prompt_id}) deleted successfully.")
     except ValueError as ve:
         logger.error(ve)
-        await update.message.reply_text("Prompt format error, please try again.")
+        await update.message.reply_text(
+            "Prompt format error, please try again.")
 
 
 async def prompt_handle(update: Update, context: CallbackContext):
@@ -986,7 +1019,8 @@ async def export_handle(update: Update, context: CallbackContext):
                 f.write(f"GPT: {msg['assistant']}\n")
         if Path("messages.txt").exists():
             await context.bot.sendDocument(
-                chat_id=update.effective_chat.id, document=open("messages.txt", "rb")
+                chat_id=update.effective_chat.id,
+                document=open("messages.txt", "rb")
             )
             Path("messages.txt").unlink()
     else:
