@@ -16,6 +16,7 @@ You can deploy your own bot
 - azure openai support
 - Anthropic claude support
 - user management
+- set stream response by user(for low speed response)
 
 ### Bot commands
 
@@ -24,6 +25,7 @@ You can deploy your own bot
 - `/mode` – Select chat mode
 - `/help` – Show help
 - `/model` - List all ai model (chatgpt, palm2, azure_openai etc. admin required)
+- `/stream` - enable stream response or disable
 
 ### Setup
 
@@ -55,6 +57,7 @@ TODO:
 - [x] azure openai support
 - [x] Anthropic claude support
 - [x] user management
+- [x] set stream response (claude only for now)
 - [ ] user list page by page
 - [ ] model select by user
 - [ ] get the latest new and summarize and send to user on schedule (maybe with voice)
