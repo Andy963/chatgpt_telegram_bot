@@ -24,7 +24,7 @@ from bot.bot import (
     export_handle,
     list_ai_model_handle,
     list_user_handle,
-    init_menu,
+    init_menu, stream_handle,
 )
 from config import config
 
@@ -59,6 +59,9 @@ def run_bot() -> None:
     )
     application.add_handler(
         CommandHandler("export", export_handle, filters=user_filter)
+    )
+    application.add_handler(
+        CommandHandler("stream", stream_handle, filters=user_filter)
     )
     application.add_handler(
         CallbackQueryHandler(set_chat_mode_handle, pattern="^set_chat_mode")

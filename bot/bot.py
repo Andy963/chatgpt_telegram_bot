@@ -53,6 +53,7 @@ command_list = [
     ("model", "List all models"),
     ("user", "List all users"),
     ("export", "Export all dialogs"),
+    ("stream", "Streaming response")
 ]
 
 HELP_MESSAGE = "\n".join(
@@ -753,6 +754,8 @@ async def dispatch_callback_handle(update: Update, context: CallbackContext):
         await add_api_count_handle(update, context)
     elif query.data.startswith("admin_user"):
         await set_admin_handle(update, context)
+    elif query.data.startswith('stream'):
+        await set_stream_handle(update, context)
 
 
 async def error_handle(update: Update, context: CallbackContext) -> None:
@@ -861,6 +864,55 @@ async def manage_user_handle(update: Update, context: CallbackContext):
         reply_markup=btns,
         parse_mode=ParseMode.HTML,
     )
+
+
+async def stream_handle(update: Update, context: CallbackContext):
+    user = update.message.from_user
+    await register_user_if_not_exists(update, context, user)
+    user_obj = user_db.get_user_by_user_id(user.id)
+    if user_obj:
+        btns = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        f"enable stream {'✔️' if user_obj.use_stream else '✓'}",
+                        callback_data=f"stream|{user_obj.user_id}|1"
+                    ),
+                    InlineKeyboardButton(
+                        "disable stream",
+                        callback_data=f"stream|{user_obj.user_id}|0",
+                    )
+                ]])
+        text = f"current stream response is: <b>{'enabled' if user_obj.use_stream else 'disabled'}</b>"
+        await context.bot.send_message(
+            chat_id=update.message.chat_id,
+            text=text,
+            reply_markup=btns,
+            parse_mode=ParseMode.HTML
+        )
+
+
+async def set_stream_handle(update: Update, context: CallbackContext):
+    user = update.callback_query.from_user
+    user_obj = user_db.get_user_by_user_id(user.id)
+    _, user_id, flag = update.callback_query.data.split("|")
+    flag_enabled = True if flag == '1' else False
+    if user_obj and user_id and user_obj.user_id != user_id:
+        await update.message.reply_text("You don't have permission to do this")
+        return
+    if user_obj.use_stream == flag_enabled:
+        await context.bot.send_message(
+            chat_id=update.callback_query.message.chat_id,
+            text=f"current stream response is <b>{'enabled' if user_obj.use_stream else 'disabled>'}</b> no need to change!",
+            parse_mode=ParseMode.HTML
+        )
+    else:
+        user_db.set_user_attribute(user_id, "use_stream", flag_enabled)
+        await context.bot.send_message(
+            chat_id=update.callback_query.message.chat_id,
+            text=f"stream response has been <b>{'enabled' if flag_enabled else 'disabled'}</b> successfully!",
+            parse_mode=ParseMode.HTML
+        )
 
 
 async def add_api_count_handle(update: Update, context: CallbackContext):
