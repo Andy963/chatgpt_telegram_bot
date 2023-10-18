@@ -50,11 +50,11 @@ class FileSplitLogger:
             encoding=encoding,
         )
         fs.setFormatter(format_str)
+        self.logger.addHandler(fs)
         if to_stream:
             sh = logging.StreamHandler()  # 往屏幕上输出
             sh.setFormatter(format_str)  # 设置屏幕上显示的格式
             self.logger.addHandler(sh)  # 把对象加到logger里
-        self.logger.addHandler(fs)
 
     def __call__(self):
         return self.logger

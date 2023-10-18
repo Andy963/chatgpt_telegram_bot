@@ -8,7 +8,7 @@
 # Description:  Database init
 import os
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, Table, Column, Boolean, MetaData, text
 
 from database.model_view import RoleServices, ModelServices, UserServices
 from database.models import Base
@@ -30,3 +30,13 @@ if not os.path.exists(db_file):
     user_service.init_root_user()
 else:
     engine = create_engine(db_url, echo=False)
+    # add a new column to model user
+    # metadata = MetaData()
+    # metadata.bind = engine
+    # user_table = Table('user', metadata, autoload_with=engine)
+    # if 'use_stream' not in user_table.columns:
+    #     with engine.begin() as conn:
+    #         conn.execute(text(
+    #             'ALTER TABLE user ADD COLUMN use_stream BOOLEAN DEFAULT FALSE'))
+
+

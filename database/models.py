@@ -45,6 +45,7 @@ class User(Base):
     )
     role_id = Column(Integer, ForeignKey("role.id"))
     role = relationship("Role", backref="users")
+    use_stream  = Column(Boolean, nullable=False, default=False)
 
     def has_permission(self, perm: Permission):
         return self.role.permissions & perm.value == perm.value

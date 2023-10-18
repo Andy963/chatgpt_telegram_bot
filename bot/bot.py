@@ -186,18 +186,80 @@ async def retry_handle(update: Update, context: CallbackContext):
     )
 
 
+async def stream_message_handle(update: Update, context: CallbackContext,
+                                message=None,
+                                user_new_dialog_timeout=True):
+    user = update.message.from_user
+    await register_user_if_not_exists(update, context, user)
+    user_obj = user_db.get_user_by_user_id(user.id)
+    chat_mode = user_obj.current_chat_mode
+    prompt = config.chat_mode[chat_mode].get("prompt_start")
+    default_model = ai_model_db.get_default_model()
+    context_msg = dialog_db.get_dialog_messages(
+        user.id, dialog_id=None, ai_model=default_model.name
+    )
+    message = update.message.text
+    stream = await anthropic_service.send_message_stream(message, context_msg,
+                                                         prompt)
+    index = 0
+    answer = ''
+    prev_answer = ''
+    answer_msg = update.message
+    message_id = update.message.message_id
+    async for a in stream:
+        text = a.completion
+        answer = f"{answer}{text}"
+        if len(answer) < 1:
+            break
+        if index == 0:
+            answer_msg = await context.bot.send_message(
+                text=f"🗣\n\n{answer}",
+                chat_id=update.message.chat_id,
+                reply_to_message_id=message_id,
+                parse_mode=ParseMode.HTML,
+                disable_notification=True,
+            )
+        else:
+            if answer == prev_answer:
+                break
+            prev_answer = answer
+            try:
+                answer_msg = await context.bot.edit_message_text(
+                    answer, answer_msg.chat_id, answer_msg.message_id)
+            except BadRequest:
+                await asyncio.sleep(0.1)
+        index = index + 1
+    new_dialog_message = {
+        "user": message,
+        "assistant": answer,
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%s"),
+    }
+    user_db.set_user_attribute(user.id, "last_interaction", datetime.now())
+    dialog_db.set_dialog_messages(
+        user.id,
+        dialog_db.get_dialog_messages(user.id, ai_model=default_model.name)
+        + [new_dialog_message],
+        ai_model=default_model.name,
+    )
+    user_db.consume_api_count(user.id)
+
+
 async def message_handle(
         update: Update, context: CallbackContext, message=None,
         use_new_dialog_timeout=True
 ):
-    # check if message is edited
-
-    if update.edited_message is not None:
-        await edited_message_handle(update, context)
-        return
     user = update.message.from_user
     await register_user_if_not_exists(update, context, user)
     user_obj = user_db.get_user_by_user_id(user.id)
+
+    # use stream by message_stream_handle
+    if user_obj and user_obj.use_stream:
+        await stream_message_handle(update, context, message)
+        return
+    # check if message is edited
+    if update.edited_message is not None:
+        await edited_message_handle(update, context)
+        return
     if not user_obj or not user_obj.has_api_count():
         await update.message.reply_text(
             "You have no API count left, please contact the admin to get more 🤷‍♂️"
