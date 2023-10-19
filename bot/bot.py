@@ -207,6 +207,8 @@ async def stream_message_handle(update: Update, context: CallbackContext,
     prev_answer = ''
     answer_msg = update.message
     message_id = update.message.message_id
+    text = ''
+    threshold = 10  # 每次编辑消息最少要5个字的变化
     async for a in stream:
         text = a.completion
         answer = f"{answer}{text}"
@@ -223,13 +225,25 @@ async def stream_message_handle(update: Update, context: CallbackContext,
         else:
             if answer == prev_answer:
                 break
+            if len(answer) < threshold + len(prev_answer):
+                continue
             prev_answer = answer
             try:
                 answer_msg = await context.bot.edit_message_text(
                     answer, answer_msg.chat_id, answer_msg.message_id)
             except BadRequest:
                 await asyncio.sleep(0.1)
+
         index = index + 1
+    else:
+        # 循环结束后检查是否有未发送的文本
+        if 0 < len(text) <= threshold:
+            answer = f"{answer}{text}"
+        try:
+            await context.bot.edit_message_text(
+                answer, answer_msg.chat_id, answer_msg.message_id)
+        except BadRequest:
+            await asyncio.sleep(0.1)
     new_dialog_message = {
         "user": message,
         "assistant": answer,
@@ -252,9 +266,9 @@ async def message_handle(
     user = update.message.from_user
     await register_user_if_not_exists(update, context, user)
     user_obj = user_db.get_user_by_user_id(user.id)
-
-    # use stream by message_stream_handle
-    if user_obj and user_obj.use_stream:
+    default_model = ai_model_db.get_default_model()
+    # use stream by message_stream_handle (only for claude model)
+    if user_obj and user_obj.use_stream and default_model.name.lower() == 'claude':
         await stream_message_handle(update, context, message)
         return
     # check if message is edited
@@ -290,7 +304,7 @@ async def message_handle(
             await keep_editing(condition, context, msg, text)
 
     try:
-        default_model = ai_model_db.get_default_model()
+
         if default_model is None:
             await update.message.reply_text("Please set default model first")
             return

@@ -61,10 +61,8 @@ class FileSplitLogger:
 
 
 fs = FileSplitLogger(filename=config.log, level="debug", to_stream=True)()
-if os.environ.get("is_console"):
-    fs.removeHandler(fs.handlers[1])  # 移除流输出handler
-else:
-    fs.removeHandler(fs.handlers[0])  # 移除文件handler
+if not os.environ.get("is_console"):
+    fs.removeHandler(fs.handlers[1]) # 移除流输出handler
 logger = fs
 if __name__ == "__main__":
     logger = FileSplitLogger(
