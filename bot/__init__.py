@@ -1,4 +1,5 @@
 from ai.anthropic_utils import AnthropicAIService
+from ai.cloudflare_utils import CloudflareAIService
 from ai.google_utils import GoogleAIService
 from ai.openai_utils import OpenAIService
 from bot.helper import AzureService
@@ -23,6 +24,11 @@ palm_service = GoogleAIService(
 anthropic_service = AnthropicAIService(
     api_key=config.claude_api_key, model_name=config.claude_model_name
 )
+
+cloudflare_service = CloudflareAIService(
+    token=config.cloudflare_token, account_id=config.cloudflare_account_id,
+    model_name=config.cloudflare_model_name)
+
 user_db = UserServices(engine)
 dialog_db = DialogServices(engine)
 ai_model_db = ModelServices(engine)

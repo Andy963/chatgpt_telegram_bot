@@ -18,7 +18,7 @@ from pydub import AudioSegment
 from telegram import Update, User, InlineKeyboardButton, InlineKeyboardMarkup, \
     Message
 from telegram.constants import ParseMode
-from telegram.error import BadRequest
+from telegram.error import BadRequest, RetryAfter
 from telegram.ext import CallbackContext, Application
 
 from config import config
@@ -34,7 +34,7 @@ from . import (
     palm_service,
     azure_openai_service,
     anthropic_service,
-    role_db,
+    role_db, cloudflare_service,
 )
 from .helper import (
     check_contain_code,
@@ -231,7 +231,7 @@ async def stream_message_handle(update: Update, context: CallbackContext,
             try:
                 answer_msg = await context.bot.edit_message_text(
                     answer, answer_msg.chat_id, answer_msg.message_id)
-            except BadRequest:
+            except (BadRequest,RetryAfter):
                 await asyncio.sleep(0.1)
 
         index = index + 1
@@ -481,6 +481,8 @@ async def get_answer_from_ai(ai_name: str, message: str, chat_mode: str,
                                                  prompt=prompt)
     elif "claude" in ai_name:
         answer = await anthropic_service.send_message(message, context, prompt)
+    elif 'cloudflare' in ai_name:
+        answer = cloudflare_service.send_message(message, context, prompt)
     else:
         answer = "Ai model not found."
     return answer

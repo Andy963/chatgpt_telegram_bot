@@ -8,7 +8,8 @@
 # Description:  Database init
 import os
 
-from sqlalchemy import create_engine, Table, Column, Boolean, MetaData, text
+from sqlalchemy import create_engine, Table, Column, Boolean, MetaData, text, \
+    select, insert
 
 from database.model_view import RoleServices, ModelServices, UserServices
 from database.models import Base
@@ -30,6 +31,7 @@ if not os.path.exists(db_file):
     user_service.init_root_user()
 else:
     engine = create_engine(db_url, echo=False)
+    # 2023.10.17
     # add a new column to model user
     # metadata = MetaData()
     # metadata.bind = engine
@@ -39,4 +41,19 @@ else:
     #         conn.execute(text(
     #             'ALTER TABLE user ADD COLUMN use_stream BOOLEAN DEFAULT FALSE'))
 
-
+    # 2023.10.19
+    # metadata = MetaData()
+    # metadata.bind = engine
+    # user_table = Table('ai_model', metadata, autoload_with=engine)
+    # # 开始数据库会话
+    # with engine.begin() as conn:
+    #     # 查询是否存在名为 "cloudflare" 的记录
+    #     query = select(user_table).where(user_table.c.name == 'cloudflare')
+    #     result = conn.execute(query)
+    #     record = result.fetchone()
+    #
+    #     # 如果不存在名为 "cloudflare" 的记录，则插入一条新记录
+    #     if record is None:
+    #         new_record = {'name': 'cloudflare', 'is_default': False,
+    #                       'is_available': True}
+    #         conn.execute(insert(user_table), new_record)

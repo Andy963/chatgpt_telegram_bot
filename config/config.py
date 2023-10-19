@@ -43,6 +43,10 @@ claude_api_key = config_yaml.get('claude_api_key', None)
 claude_model_name = config_yaml.get('claude_model_name', 'claude-2')
 ai_models = config_yaml.get("ai_models", None)
 
+cloudflare_token = config_yaml.get("cloudflare_token", None)
+cloudflare_model_name = config_yaml.get('cloudflare_model_name', None)
+cloudflare_account_id = config_yaml.get('cloudflare_account_id', None)
+
 root_user_id = config_yaml.get("root_user_id", None)  # set telegram user admin
 config_file = config_yaml.get('chat_mode_path', Path(config_dir /
                                                      'chat_mode.json'))
