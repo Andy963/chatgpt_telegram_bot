@@ -231,7 +231,7 @@ async def stream_message_handle(update: Update, context: CallbackContext,
             try:
                 answer_msg = await context.bot.edit_message_text(
                     answer, answer_msg.chat_id, answer_msg.message_id)
-            except (BadRequest,RetryAfter):
+            except (BadRequest, RetryAfter):
                 await asyncio.sleep(0.1)
 
         index = index + 1
@@ -316,7 +316,8 @@ async def message_handle(
             parse_mode=ParseMode.HTML,
         )
         context_msg = dialog_db.get_dialog_messages(
-            user.id, dialog_id=None, ai_model=default_model.name
+            user.id, dialog_id=user_obj.current_dialog_id,
+            ai_model=default_model.name
         )
         edit_task = asyncio.create_task(
             keep_editing(condition, context, tip_message, tip_message.text)

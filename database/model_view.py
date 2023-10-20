@@ -162,12 +162,13 @@ class DialogServices(Database):
         with self as session:
             user = session.query(User).filter_by(user_id=user_id).first()
             ai = session.query(AiModel).filter_by(is_default=True).first()
+            dialog_id = str(uuid.uuid4())
             dialog = Dialog(
-                **{'dialog_id': str(uuid.uuid4()), 'user_id': user_id,
+                **{'dialog_id': dialog_id, 'user_id': user_id,
                    'chat_mode': user.current_chat_mode,
                    'start_time': datetime.now(), 'messages': [],
                    "ai_model": ai})
-            session.add(dialog)
+            session.add_all([user, dialog])
         return dialog
 
     def get_dialog_messages(self, user_id: str, dialog_id: Optional[str] = None,
