@@ -6,7 +6,6 @@
 # Copyright: 2023 Zhou
 # License:
 # Description: anthropic ai claude
-import traceback
 
 import anthropic
 
@@ -14,34 +13,50 @@ from logs.log import logger
 
 
 class AnthropicAIService:
+    max_tokens = 100000
+    token_threshold = 1000
+
     def __init__(self, api_key: str, model_name: str = 'claude-2', **kwargs):
         self.model_name = model_name
         self.claude = anthropic.AsyncAnthropic(api_key=api_key)
+        self.client = anthropic.Anthropic()
 
-    @staticmethod
-    def _generate_msg(message, dialog_messages, prompt):
+    def solve_context_limit(self, dialogs: list) -> list:
+        """
+        reduce the long context to a short one
+        :param dialogs: [{'user':"", 'assistant':""}]
+        :return: dialogs list
+        """
+        lgs = [self.client.count_tokens(d['user']) + self.client.count_tokens(
+            d['assistant']) for d in dialogs]
+        if sum(lgs) > self.max_tokens:
+            count = 0
+            total = 0
+            for num in lgs:
+                total += num
+                count += 1
+                if total > self.max_tokens:
+                    break
+            dialogs = dialogs[count:]
+        return dialogs
+
+    def _generate_msg(self, message, dialog_messages, prompt):
         """
         Generate messages for claude
         :param message:
         :param dialog_messages:
         :param chat_mode:
         """
-
-        messages = ""
-        # tell system the role you want it to play
         if not dialog_messages:
-            messages = f"{anthropic.HUMAN_PROMPT} {prompt} {anthropic.AI_PROMPT}"
-        # take the message from the user  shorten the dialog messages to
-        # `prevent exceed the max token limit (100k) bz claude don't provide
-        #  to calculate token , just set to 100 dialog messages
-        if len(dialog_messages) > 100:
-            dialog_messages = dialog_messages[-100:]
-        for msg in dialog_messages:
-            messages += f"{anthropic.HUMAN_PROMPT} " \
-                        f"{msg['user']} {anthropic.AI_PROMPT} {msg['assistant']}"
+            context = f"{anthropic.HUMAN_PROMPT} {prompt} {anthropic.AI_PROMPT}"
+            return context
+        dialog_messages = self.solve_context_limit(dialog_messages)
+        context = ''.join(
+            [f"{anthropic.HUMAN_PROMPT} {msg['user']} {anthropic.AI_PROMPT} \
+            {msg['assistant']}" for msg in dialog_messages])
 
-        messages += f"{anthropic.HUMAN_PROMPT} {message} {anthropic.AI_PROMPT}"
-        return messages
+        context += f"{anthropic.HUMAN_PROMPT} {message} {anthropic.AI_PROMPT}"
+        return context
 
     async def send_message(self, message, dialog_messages=None, prompt=None):
         """
@@ -55,7 +70,7 @@ class AnthropicAIService:
             resp = await self.claude.completions.create(
                 prompt=messages,
                 model=self.model_name,
-                max_tokens_to_sample=1000,
+                max_tokens_to_sample=self.token_threshold,
             )
             answer = resp.completion
         except Exception as e:
@@ -63,26 +78,6 @@ class AnthropicAIService:
             answer = f"sth wrong with claude, please try again later."
 
         return answer
-
-    @staticmethod
-    def _generate_stream_msg(message, dialog_messages, prompt):
-        """
-        Generate messages claude
-        :param message:
-        :param dialog_messages:
-        :param prompt:
-        """
-
-        messages = ""
-        # tell system the role you want it to play
-        if not dialog_messages:
-            messages = f"{anthropic.HUMAN_PROMPT} {prompt} {anthropic.AI_PROMPT}"
-        for msg in dialog_messages:
-            messages += f"{anthropic.HUMAN_PROMPT} " \
-                        f"{msg['user']} {anthropic.AI_PROMPT} {msg['assistant']}"
-
-        messages += f"{anthropic.HUMAN_PROMPT} {message} {anthropic.AI_PROMPT}"
-        return messages
 
     async def send_message_stream(self, message, dialog_messages=None,
                                   prompt=None):
@@ -93,12 +88,11 @@ class AnthropicAIService:
             dialog_messages = []
 
         try:
-            messages = self._generate_stream_msg(message, dialog_messages,
-                                                 prompt)
+            messages = self._generate_msg(message, dialog_messages, prompt)
             answer = await self.claude.completions.create(
                 prompt=messages,
                 model=self.model_name,
-                max_tokens_to_sample=500,
+                max_tokens_to_sample=self.token_threshold,
                 stream=True
             )
         except Exception as e:
@@ -108,5 +102,6 @@ class AnthropicAIService:
             async def empty_generator():
                 if False:  # 这将永远不会执行
                     yield
+
             answer = empty_generator()
         return answer
