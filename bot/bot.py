@@ -231,7 +231,10 @@ async def stream_message_handle(update: Update, context: CallbackContext,
             try:
                 answer_msg = await context.bot.edit_message_text(
                     answer, answer_msg.chat_id, answer_msg.message_id)
-            except (BadRequest, RetryAfter):
+            except (BadRequest, RetryAfter) as e:
+                logger.error(
+                    f"edit_message_text error: {traceback.format_exc()}")
+                logger.error(f"error message{e}")
                 await asyncio.sleep(0.1)
 
         index = index + 1
@@ -242,7 +245,9 @@ async def stream_message_handle(update: Update, context: CallbackContext,
         try:
             await context.bot.edit_message_text(
                 answer, answer_msg.chat_id, answer_msg.message_id)
-        except BadRequest:
+        except (BadRequest, RetryAfter) as e:
+            logger.error(f"edit_message_text error: {traceback.format_exc()}")
+            logger.error(f"error message{e}")
             await asyncio.sleep(0.1)
     new_dialog_message = {
         "user": message,
