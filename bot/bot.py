@@ -363,9 +363,9 @@ async def message_handle(
         )
         user_db.set_user_attribute(user.id, "last_interaction", datetime.now())
         # if answer is not in chinese give translate options
-        if azure_service.translate_service_available and not re.search(
-                r"[\u4e00-\u9fff]+", answer
-        ):
+        if azure_service.translate_service_available and \
+                not re.search(r"[\u4e00-\u9fff]+", answer) and \
+                'sth went wrong' != answer:
             translate_choice = [
                 InlineKeyboardButton("请帮我翻译成中文󠁧󠁢󠁥󠁮󠁧󠁿",
                                      callback_data=f"translate|zh"),
@@ -807,12 +807,12 @@ async def error_handle(update: Update, context: CallbackContext) -> None:
         ]
         for message_chunk in message_chunks:
             await context.bot.send_message(
-                update.effective_chat.id, message_chunk,
+                update.callback_query.message.chat_id, message_chunk,
                 parse_mode=ParseMode.HTML
             )
     except Exception as e:
         await context.bot.send_message(
-            update.effective_chat.id, "Some error in error handler"
+            update.callback_query.message.chat_id, "Some error in error handler"
         )
 
 
