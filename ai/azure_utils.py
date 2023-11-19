@@ -1,64 +1,48 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# File: openai_utils.py
+# File: azure_utils.py
 # Author: Zhou
 # Date: 2023/6/7
 # Copyright: 2023 Zhou
 # License:
 # Description: use openai to generate text for chatgpt and azure openai
 
-import openai
 import tiktoken
+from openai import AzureOpenAI
 
 from config import config
 from logs.log import logger
 
 
 class OpenAIService:
-    OPENAI_COMPLETION_OPTIONS = {
-        "temperature": 0.5,
-        "max_tokens": 1000,
-        "top_p": 1,
-        "frequency_penalty": 0,
-        "presence_penalty": 0
+    support_models = {
+        'azure': ['gpt-35-turbo-16k', 'gpt-4-32k']
     }
 
-    support_models = {'chatgpt': ['gpt-3.5-turbo'],
-                      'azure': ['gpt-35-turbo', 'gpt-35-turbo-16k']
-                      }
-
-    def __init__(self, model_name: str = 'gpt-3.5-turbo',
-                 api_type: str = 'chatgpt', max_token: int = 16000, **kwargs):
+    def __init__(self, model_name: str = 'gpt-35-turbo-16k',
+                 api_type: str = 'azure', max_token: int = 16000, **kwargs):
         """
         use gpt-3.5-turbo by default
         """
         self.model_name = model_name
         self.api_type = api_type
         self.max_token = max_token
+        self.azure_client = AzureOpenAI(
+            azure_endpoint=config.azure_openai_endpoint,
+            api_version=config.azure_openai_api_version,
+            api_key=config.azure_openai_api_key
+        )
 
     def gen_options(self, messages):
         """Generate options for openai
         """
         if self.model_name not in self.support_models[self.api_type]:
             raise ValueError(f"Model {self.model_name} is not supported")
-
-        if self.api_type == 'chatgpt':
-            opts = {
-                "model": self.model_name,
-                "messages": messages,
-                "api_key": config.openai_api_key,
-                **self.OPENAI_COMPLETION_OPTIONS
-            }
-        else:
-            opts = {
-                "engine": self.model_name,
-                "messages": messages,
-                "api_type": "azure",
-                "api_base": config.azure_openai_endpoint,
-                "api_version": config.azure_openai_api_version,
-                "api_key": config.azure_openai_api_key,
-                **self.OPENAI_COMPLETION_OPTIONS
-            }
+        opts = {
+            "messages":messages,
+            "model": self.model_name,  # deployed name same as model_name
+            "max_tokens": self.max_token
+        }
         return opts
 
     def _generate_msg(self, message: str, dialog_messages: list, prompt: str):
@@ -97,8 +81,9 @@ class OpenAIService:
             dialog_messages = []
         try:
             messages = self._generate_msg(message, dialog_messages, prompt)
-            r = openai.ChatCompletion.create(**self.gen_options(messages))
-            answer = r.choices[0].message["content"]
+            r = self.azure_client.chat.completions.create(
+                **self.gen_options(messages))
+            answer = r.choices[0].message.content
         except Exception as e:
             logger.error(f"error:\n\n ask: {message} \n with error {e}")
             answer = f"sth went wrong"

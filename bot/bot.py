@@ -477,9 +477,7 @@ async def get_answer_from_ai(ai_name: str, message: str, chat_mode: str,
     answer = None
     prompt = config.chat_mode[chat_mode].get("prompt_start")
     ai_name = ai_name.lower()
-    if "chatgpt" in ai_name:
-        answer = await gpt_service.send_message(message, context, prompt)
-    elif "azure_openai" in ai_name:
+    if "azure_openai" in ai_name:
         answer = await azure_openai_service.send_message(message, context,
                                                          prompt)
     elif "palm2" in ai_name:
