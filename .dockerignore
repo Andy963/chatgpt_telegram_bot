@@ -1,6 +1,7 @@
 README.md
 *__pycache__/
 db.sqlite
+.mypy_cache/
 LICENSE
 tests/
 *config.example.yml

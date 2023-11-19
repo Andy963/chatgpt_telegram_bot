@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 .idea
 .vscode
+.mypy_cache
 # C extensions
 *.so
 *.sqlite

@@ -18,16 +18,17 @@ class AnthropicAIService:
 
     def __init__(self, api_key: str, model_name: str = 'claude-2', **kwargs):
         self.model_name = model_name
-        self.claude = anthropic.AsyncAnthropic(api_key=api_key)
-        self.client = anthropic.Anthropic()
+        self.client = anthropic.AsyncAnthropic(api_key=api_key)
+        # self.client = anthropic.Anthropic()
 
-    def solve_context_limit(self, dialogs: list) -> list:
+    async def solve_context_limit(self, dialogs: list) -> list:
         """
         reduce the long context to a short one
         :param dialogs: [{'user':"", 'assistant':""}]
         :return: dialogs list
         """
-        lgs = [self.client.count_tokens(d['user']) + self.client.count_tokens(
+        lgs = [await self.client.count_tokens(
+            d['user']) + await self.client.count_tokens(
             d['assistant']) for d in dialogs]
         if sum(lgs) > self.max_tokens:
             count = 0
@@ -40,7 +41,7 @@ class AnthropicAIService:
             dialogs = dialogs[count:]
         return dialogs
 
-    def _generate_msg(self, message, dialog_messages, prompt):
+    async def _generate_msg(self, message, dialog_messages, prompt):
         """
         Generate messages for claude
         :param message:
@@ -50,7 +51,7 @@ class AnthropicAIService:
         if not dialog_messages:
             context = f"{anthropic.HUMAN_PROMPT} {prompt} {anthropic.AI_PROMPT}"
             return context
-        dialog_messages = self.solve_context_limit(dialog_messages)
+        dialog_messages = await self.solve_context_limit(dialog_messages)
         context = ''.join(
             [f"{anthropic.HUMAN_PROMPT} {msg['user']} {anthropic.AI_PROMPT} \
             {msg['assistant']}" for msg in dialog_messages])
@@ -66,8 +67,9 @@ class AnthropicAIService:
             dialog_messages = []
 
         try:
-            messages = self._generate_msg(message, dialog_messages, prompt)
-            resp = await self.claude.completions.create(
+            messages = await self._generate_msg(message, dialog_messages,
+                                                prompt)
+            resp = await self.client.completions.create(
                 prompt=messages,
                 model=self.model_name,
                 max_tokens_to_sample=self.token_threshold,
@@ -88,8 +90,9 @@ class AnthropicAIService:
             dialog_messages = []
 
         try:
-            messages = self._generate_msg(message, dialog_messages, prompt)
-            answer = await self.claude.completions.create(
+            messages = await self._generate_msg(message, dialog_messages,
+                                                prompt)
+            answer = await self.client.completions.create(
                 prompt=messages,
                 model=self.model_name,
                 max_tokens_to_sample=self.token_threshold,
