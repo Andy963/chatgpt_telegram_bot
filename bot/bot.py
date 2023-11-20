@@ -762,10 +762,8 @@ async def dispatch_callback_handle(update: Update, context: CallbackContext):
         await url_link_handle(update, context)
     elif query.data.startswith("prompt"):
         await prompt_handle(update, context)
-    elif query.data.startswith("setModel"):
-        await set_default_ai_model_handle(update, context)
-    elif query.data.startswith("toggleModel"):
-        await toggle_ai_model_handle(update, context)
+    elif query.data.startswith("model"):
+        await operate_ai_model_handle(update, context)
     elif query.data.startswith("set_chat_mode"):
         await set_chat_mode_handle(update, context)
     elif query.data.startswith("m_user"):
@@ -982,18 +980,22 @@ async def list_ai_model_handle(update: Update, context: CallbackContext):
     if len(models) == 0:
         await update.message.reply_text("No models yet, please add one first.")
         return
-    text = "List All AI models \nHere are the available models (Click to change default model):\n"
+    text = "List All AI models \nHere are the available models:\n"
 
     btns = InlineKeyboardMarkup(
         [
             [
                 InlineKeyboardButton(
-                    f"{md.name} {'(default)' if md.is_default else ''}",
-                    callback_data=f"setModel|{md.name}",
+                    f"{md.name} {'(*)' if md.is_default else ''}",
+                    callback_data=f"model|set|{md.name}",
                 ),
                 InlineKeyboardButton(
                     "DISABLE" if md.is_available else "ENABLE",
-                    callback_data=f"toggleModel|{md.name}|{md.is_available}",
+                    callback_data=f"model|toggle|{md.name}",
+                ),
+                InlineKeyboardButton(
+                    "DEL",
+                    callback_data=f"model|del|{md.name}",
                 ),
             ]
             for md in models
@@ -1007,7 +1009,7 @@ async def list_ai_model_handle(update: Update, context: CallbackContext):
     )
 
 
-async def toggle_ai_model_handle(update: Update, context: CallbackContext):
+async def operate_ai_model_handle(update: Update, context: CallbackContext):
     """toggle ai model available"""
     user = update.callback_query.from_user
     await register_user_if_not_exists(update, context, user)
@@ -1015,38 +1017,55 @@ async def toggle_ai_model_handle(update: Update, context: CallbackContext):
     if not user_obj or not user_obj.has_permission(Permission.ADMIN):
         await update.message.reply_text("You don't have permission to do this")
         return
-    ai_name, is_available = update.callback_query.data.split("|")[1:]
-    if is_available == "True":
-        # disable
-        ai_model_db.update_model(ai_name, is_available=False)
+    _, action, ai_name = update.callback_query.data.split("|")
+    ai_model = ai_model_db.get_model(ai_name)
+    if not ai_model:
         await context.bot.send_message(
             update.callback_query.message.chat_id,
-            f"Disable <b>{ai_name}</b> success.",
+            f"{ai_name} not found",
             parse_mode=ParseMode.HTML,
         )
-    else:
-        ai_model_db.update_model(ai_name, is_available=True)
+        return
+    if action == "set":
+        if ai_model.is_available:
+            df_model = ai_model_db.get_default_model()
+            if df_model:
+                ai_model_db.update_model(df_model.name, is_default=False)
+            ai_model_db.update_model(ai_name, is_default=True)
+            await context.bot.send_message(
+                update.callback_query.message.chat_id,
+                f"Set <b>{ai_name}</b> as default model success.",
+                parse_mode=ParseMode.HTML,
+            )
+        else:
+            await context.bot.send_message(
+                update.callback_query.message.chat_id,
+                f"{ai_name} is disabled by admin",
+                parse_mode=ParseMode.HTML,
+            )
+            return
+    elif action == 'toggle':
+        flag = ai_model.is_available
+        if ai_model.is_available:
+            ai_model_db.update_model(ai_name, is_available=False)
+        else:
+            ai_model_db.update_model(ai_name, is_available=True)
         await context.bot.send_message(
             update.callback_query.message.chat_id,
-            f"Enable <b>{ai_name}</b> success.",
+            f"{ai_name} is set to {'not available' if flag else 'available'}",
             parse_mode=ParseMode.HTML,
         )
-
-
-async def set_default_ai_model_handle(update: Update, context: CallbackContext):
-    """set the default ai model"""
-    await register_user_if_not_exists(update, context,
-                                      update.callback_query.from_user)
-    # remove the default flag from the old default model
-    df_model = ai_model_db.get_default_model()
-    if df_model:
-        ai_model_db.update_model(df_model.name, is_default=False)
-    ai_name = update.callback_query.data.split("|")[1]
-    ai_model_db.update_model(ai_name, is_default=True)
-
+    elif action == "del":
+        ai_model_db.del_model(ai_name)
+        await context.bot.send_message(
+            update.callback_query.message.chat_id,
+            f"{ai_name} has been deleted",
+            parse_mode=ParseMode.HTML,
+        )
+    names = [m.name for m in ai_model_db.list_all_model()]
     await context.bot.send_message(
         update.callback_query.message.chat_id,
-        f"Set <b>{ai_name}</b> as default model success.",
+        f"Now, we have {'、'.join(names)}",
         parse_mode=ParseMode.HTML,
     )
 
